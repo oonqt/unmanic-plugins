@@ -193,6 +193,8 @@ class StreamMapper(object):
             codec_type = stream_info.get('codec_type', '').lower()
             # Fore each of these streams:
 
+            self.logger.info(codec_type, processing_stream_type);
+            
             # If this is a video/image stream?
             if codec_type == "video":
                 # Map the video stream
@@ -243,7 +245,7 @@ class StreamMapper(object):
                 if "subtitle" in processing_stream_type:
                     if not self.test_stream_needs_processing(stream_info):
                         self.__copy_stream_mapping('s', self.subtitle_stream_count)
-                        self.subtitle_stream_count += 1
+                        self.sub_stream_count += 1
                         continue
                     else:
                         mapping = self.custom_stream_mapping(stream_info, self.subtitle_stream_count)

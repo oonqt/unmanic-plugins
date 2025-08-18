@@ -91,7 +91,7 @@ def on_library_management_file_test(data):
     if not probe.file(abspath):
         # File probe failed, skip the rest of this test
         return data
-
+    
     # Get stream mapper
     mapper = PluginStreamMapper()
     mapper.set_probe(probe)
