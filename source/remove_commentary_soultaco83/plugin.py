@@ -28,7 +28,7 @@ from unmanic.libs.unplugins.settings import PluginSettings
 from remove_songs_signs_soultaco83.lib.ffmpeg import StreamMapper, Probe, Parser
 
 # Configure plugin logger
-logger = logging.getLogger("Unmanic.Plugin.remove_commentary_soultaco83")
+logger = logging.getLogger("Unmanic.Plugin.remove_commentary_embieserver")
 
 
 class Settings(PluginSettings):
@@ -51,7 +51,7 @@ class PluginStreamMapper(StreamMapper):
 
         ]
 
-        print(stream_info);
+        logger.info(stream_info);
 
         for tag in data_stream_tags:
             try:

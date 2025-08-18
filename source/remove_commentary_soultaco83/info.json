@@ -1,12 +1,12 @@
 {
-    "author": "Soultaco83(Modified from Josh.5,yajrendrag)",
+    "author": "Rechigo (Modified from Josh.5,yajrendrag,Soultaco83)",
     "compatibility": [
         1,
         2
     ],
     "description": "Removes Audio if it has Commentary in title tag",
     "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/remove_commentary_soultaco83/icon.png",
-    "id": "remove_commentary_soultaco83",
+    "id": "remove_commentary_embieserver",
     "name": "remove commentary",
     "platform": [
         "all"
@@ -16,5 +16,5 @@
         "on_worker_process": 1
     },
     "tags": "subtitle,data,ffmpeg,library file test",
-    "version": "0.0.1"
+    "version": "0.0.2"
 }
