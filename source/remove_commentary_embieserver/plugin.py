@@ -51,8 +51,6 @@ class PluginStreamMapper(StreamMapper):
 
         ]
 
-        logger.info(stream_info);
-
         for tag in data_stream_tags:
             try:
                 if stream_info.get('codec_type').lower() in data_stream_codec_types and tag in stream_info.get('tags').get('title').lower():

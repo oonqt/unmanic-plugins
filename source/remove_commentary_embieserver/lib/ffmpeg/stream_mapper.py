@@ -192,8 +192,6 @@ class StreamMapper(object):
         for stream_info in file_probe_streams:
             codec_type = stream_info.get('codec_type', '').lower()
             # Fore each of these streams:
-
-            self.logger.info(codec_type, processing_stream_type);
             
             # If this is a video/image stream?
             if codec_type == "video":
