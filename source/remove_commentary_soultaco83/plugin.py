@@ -51,7 +51,7 @@ class PluginStreamMapper(StreamMapper):
 
         ]
 
-        print(stream_info); # should work
+        print(stream_info);
 
         for tag in data_stream_tags:
             try:
