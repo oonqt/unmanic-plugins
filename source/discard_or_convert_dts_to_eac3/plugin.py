@@ -126,7 +126,7 @@ def on_library_management_file_test(data):
 
     dts_indices, all_astreams, action = s2_analyze(probe_streams, abspath)
 
-    if action in ('drop', 'convert'):
+    if dts_indices and action in ('drop', 'convert'):
         data['add_file_to_pending_tasks'] = True
         for audio_pos, abs_idx in enumerate(all_astreams):
             if abs_idx in dts_indices:
