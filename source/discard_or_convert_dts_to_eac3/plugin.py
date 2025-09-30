@@ -26,10 +26,10 @@ import os
 
 from unmanic.libs.unplugins.settings import PluginSettings
 
-from convert_dts_to_eac3_or_discard.lib.ffmpeg import Probe, Parser
+from discard_or_convert_dts_to_eac3.lib.ffmpeg import Probe, Parser
 
 # Configure plugin logger
-logger = logging.getLogger("Unmanic.Plugin.convert_dts_to_eac3_or_discard")
+logger = logging.getLogger("Unmanic.Plugin.discard_or_convert_dts_to_eac3")
 
 
 class Settings(PluginSettings):
