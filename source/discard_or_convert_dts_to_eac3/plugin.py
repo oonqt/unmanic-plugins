@@ -86,10 +86,11 @@ def s2_analyze(probe_streams, abspath):
         # Decision logic:
         # - If there's any non-DTS multichannel stream, drop DTS multichannel track(s).
         # - Else, if there are DTS multichannel streams, convert them to eac3.
-        if non_dts_multichannel:
-            action = 'drop'
-        elif dts_indices:
-            action = 'convert'
+        if dts_indices:
+            if non_dts_multichannel:
+                action = 'drop'
+            else:
+                action = 'convert'
         else:
             action = None
 
@@ -126,7 +127,7 @@ def on_library_management_file_test(data):
 
     dts_indices, all_astreams, action = s2_analyze(probe_streams, abspath)
 
-    if dts_indices and action in ('drop', 'convert'):
+    if action in ('drop', 'convert'):
         data['add_file_to_pending_tasks'] = True
         for audio_pos, abs_idx in enumerate(all_astreams):
             if abs_idx in dts_indices:
@@ -171,7 +172,7 @@ def on_worker_process(data):
     dts_indices, all_astreams, action = s2_analyze(probe_streams, abspath)
     bit_rate = settings.get_setting('bit_rate')
 
-    if dts_indices and action in ('drop', 'convert'):
+    if action in ('drop', 'convert'):
         encoder = 'eac3'
 
         # Set initial ffmpeg args
