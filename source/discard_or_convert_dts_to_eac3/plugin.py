@@ -34,33 +34,60 @@ logger = logging.getLogger("Unmanic.Plugin.discard_or_convert_dts_to_eac3")
 
 class Settings(PluginSettings):
     settings = {
-        "bit_rate": "640k",
+        "bit_rate": "768",
+        "threshold_bit_rate": "640"
     }
 
     def __init__(self, *args, **kwargs):
         super(Settings, self).__init__(*args, **kwargs)
         self.form_settings = {
             "bit_rate": {
-                "label": "Enter the bitrate for the EAC3 track",
+                "label": "Enter the bitrate (kbps) for the EAC3 track",
+            },
+            "threshold_bit_rate": {
+                "label": "Enter the cutoff bitrate (kbps) for surround tracks that will be discarded in favor of DTS->EAC3 track"
             }
         }
 
+def _get_stream_bitrate_kbps(stream):
+    """
+    Try to robustly read stream bitrate (kbps) from ffprobe stream dict.
+    Returns integer kbps or 0 if unknown.
+    """
+    try:
+        # common field
+        br = stream.get("bit_rate")
+        if br:
+            # ffprobe often gives bits/sec as a string
+            return int(int(br) // 1000)
+        # sometimes ffprobe uses tags or different keys; try tags
+        tags = stream.get("tags") or {}
+        # BPS sometimes present as bits/sec
+        bps = tags.get("BPS") or tags.get("BPS-eng")
+        if bps:
+            return int(int(bps) // 1000)
+    except Exception:
+        pass
+    return 0
 
-def s2_analyze(probe_streams, abspath):
+def s2_analyze(probe_streams, abspath, surround_threshold_kbps):
     """
     Analyze probe_streams and decide whether to:
-      - 'drop' DTS multichannel streams (if another non-DTS multi-channel stream exists),
-      - 'convert' DTS multichannel streams to eac3 (if the only other audio tracks are stereo),
+      - 'drop' DTS multichannel streams (if there exists a non-DTS multichannel stream
+         whose bitrate >= surround_threshold_kbps),
+      - 'convert' DTS multichannel streams to eac3 (if there are no non-DTS multichannel
+         streams with bitrate >= threshold — low-bitrate surrounds will be removed),
       - or None (nothing to do).
 
     Returns:
         dts_indices: list of absolute stream indices for DTS multichannel streams (channels > 2)
         all_astreams: list of absolute stream indices for all audio streams (in file order)
         action: one of 'drop', 'convert', or None
+        low_quality_non_dts: list of non-DTS multichannel indices whose bitrate < threshold (these can be removed)
+        high_quality_non_dts: list of non-DTS multichannel indices whose bitrate >= threshold (we keep these)
     """
     try:
-        # dts detection: codec_name contains 'dts' or 'dca'
-        DTS_HINTS = ("dts", "dca")
+        DTS_HINTS = ("dts", "dca", "truehd", "true-hd")
 
         all_astreams = [
             i for i in range(0, len(probe_streams))
@@ -69,6 +96,10 @@ def s2_analyze(probe_streams, abspath):
 
         dts_indices = []
         non_dts_multichannel = []
+
+        # collect bitrate info for non-DTS multichannel streams
+        low_quality_non_dts = []
+        high_quality_non_dts = []
 
         for i in all_astreams:
             s = probe_streams[i]
@@ -82,22 +113,32 @@ def s2_analyze(probe_streams, abspath):
                 dts_indices.append(i)
             elif (not is_dts) and is_multichannel:
                 non_dts_multichannel.append(i)
+                # get bitrate in kbps
+                br_kbps = _get_stream_bitrate_kbps(s)
+                if br_kbps == 0:
+                    # Unknown bitrate -> treat as low-quality
+                    low_quality_non_dts.append(i)
+                elif br_kbps >= int(surround_threshold_kbps):
+                    high_quality_non_dts.append(i)
+                else:
+                    low_quality_non_dts.append(i)
 
         # Decision logic:
-        # - If there's any non-DTS multichannel stream, drop DTS multichannel track(s).
-        # - Else, if there are DTS multichannel streams, convert them to eac3.
+        # - If there's any high_quality_non_dts stream, we prefer it: drop DTS
+        # - Else, if low_quality_non_dts exist (or no other multichannel exists) but dts exists -> convert DTS
         if dts_indices:
-            if non_dts_multichannel:
+            if high_quality_non_dts:
                 action = 'drop'
             else:
+                # either there are no non-dts multichannel streams OR all non-dts multichannel are low quality
                 action = 'convert'
         else:
             action = None
 
-        return dts_indices, all_astreams, action
+        return dts_indices, all_astreams, action, low_quality_non_dts, high_quality_non_dts
     except Exception:
         logger.info("No DTS audio streams found to inspect in '{}'".format(abspath))
-        return [], [], None
+        return [], [], None, [], []
 
 
 def on_library_management_file_test(data):
@@ -125,7 +166,8 @@ def on_library_management_file_test(data):
     else:
         settings = Settings()
 
-    dts_indices, all_astreams, action = s2_analyze(probe_streams, abspath)
+    threshold = int(settings.get_setting('surround_bitrate_threshold_kbps'))
+    dts_indices, all_astreams, action, low_q, high_q = s2_analyze(probe_streams, abspath, threshold)
 
     if action in ('drop', 'convert'):
         data['add_file_to_pending_tasks'] = True
@@ -134,7 +176,11 @@ def on_library_management_file_test(data):
                 if action == 'convert':
                     logger.info("audio stream '{}' (file audio pos {}) is DTS and will be re-encoded as eac3 (replacing original DTS).".format(abs_idx, audio_pos))
                 else:  # drop
-                    logger.info("audio stream '{}' (file audio pos {}) is DTS and will be discarded (another non-stereo multichannel audio stream exists).".format(abs_idx, audio_pos))
+                    logger.info("audio stream '{}' (file audio pos {}) is DTS and will be discarded (another non-stereo multichannel audio stream exists with sufficient bitrate).".format(abs_idx, audio_pos))
+            elif abs_idx in low_q:
+                logger.info("audio stream '{}' (file audio pos {}) is non-DTS multichannel but below threshold ({} kbps) and will be removed in convert mode.".format(abs_idx, audio_pos, threshold))
+            elif abs_idx in high_q:
+                logger.info("audio stream '{}' (file audio pos {}) is non-DTS multichannel with bitrate >= {} kbps and will be kept.".format(abs_idx, audio_pos, threshold))
     else:
         logger.info("do not add file '{}' to task list - no multichannel DTS audio streams requiring action found".format(abspath))
 
@@ -169,7 +215,8 @@ def on_worker_process(data):
     else:
         settings = Settings()
 
-    dts_indices, all_astreams, action = s2_analyze(probe_streams, abspath)
+    threshold = int(settings.get_setting('surround_bitrate_threshold_kbps'))
+    dts_indices, all_astreams, action, low_q, high_q = s2_analyze(probe_streams, abspath, threshold)
     bit_rate = settings.get_setting('bit_rate')
 
     if action in ('drop', 'convert'):
@@ -186,21 +233,33 @@ def on_worker_process(data):
         # out_a_idx is the output audio stream index (used for -c:a:N), increments only when we actually map an audio stream.
         out_a_idx = 0
         for audio_pos, abs_idx in enumerate(all_astreams):
-            # If action == 'drop' and this abs_idx is a DTS stream to be dropped, skip mapping it entirely.
-            if action == 'drop' and abs_idx in dts_indices:
-                logger.info("Skipping mapping of DTS audio (abs stream {}) because a non-DTS multichannel stream exists.".format(abs_idx))
+            # If this is a low-quality non-DTS multichannel and we're in convert mode,
+            # skip mapping it (we will remove it and instead convert/keep DTS).
+            if action == 'convert' and abs_idx in low_q:
+                logger.info("Removing low-bitrate non-DTS multichannel (abs stream {}) because bitrate < {} kbps; DTS will be converted instead.".format(abs_idx, threshold))
                 continue
 
-            # Map this audio stream
+            # If action == 'drop' and this abs_idx is a DTS stream to be dropped, skip mapping it entirely.
+            if action == 'drop' and abs_idx in dts_indices:
+                logger.info("Skipping mapping of DTS audio (abs stream {}) because a non-DTS multichannel stream exists with sufficient bitrate.".format(abs_idx))
+                continue
+
+            # Map this audio stream (use file audio position for -map)
             stream_map += ['-map', '0:a:{}'.format(audio_pos)]
 
             # If action == 'convert' and this abs_idx is a DTS stream, transcode it to eac3
             if action == 'convert' and abs_idx in dts_indices:
                 # set codec for this output audio index
-                stream_map += ['-c:a:{}'.format(out_a_idx), encoder, '-ac', '6', '-b:a:{}'.format(out_a_idx), bit_rate, '-metadata:s:a:{}'.format(out_a_idx), 'title={}'.format(encoder + ' Surround')]
+                stream_map += [
+                    '-c:a:{}'.format(out_a_idx),
+                    encoder,
+                    '-ac', '6',
+                    '-b:a:{}'.format(out_a_idx), '{}k'.format(bit_rate),
+                    '-metadata:s:a:{}'.format(out_a_idx), 'title={}'.format(encoder + ' Surround')
+                ]
                 logger.info("Mapping DTS audio (abs stream {}) -> re-encode to {} (out audio idx {}).".format(abs_idx, encoder, out_a_idx))
             else:
-                # copy other audio streams
+                # copy other audio streams (stereo and any kept non-DTS multichannel)
                 stream_map += ['-c:a:{}'.format(out_a_idx), 'copy']
                 logger.info("Mapping audio (abs stream {}) -> copy (out audio idx {}).".format(abs_idx, out_a_idx))
 
