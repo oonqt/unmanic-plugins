@@ -39,6 +39,11 @@ class Settings(PluginSettings):
 
     def __init__(self, *args, **kwargs):
         super(Settings, self).__init__(*args, **kwargs)
+        self.form_settings = {
+            "bit_rate": {
+                "label": "Enter the bitrate for the EAC3 track",
+            }
+        }
 
 
 def s2_analyze(probe_streams, abspath):
