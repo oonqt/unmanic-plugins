@@ -171,7 +171,7 @@ def on_worker_process(data):
     dts_indices, all_astreams, action = s2_analyze(probe_streams, abspath)
     bit_rate = settings.get_setting('bit_rate')
 
-    if action in ('drop', 'convert'):
+    if dts_indices and action in ('drop', 'convert'):
         encoder = 'eac3'
 
         # Set initial ffmpeg args
