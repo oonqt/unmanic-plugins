@@ -166,7 +166,7 @@ def on_library_management_file_test(data):
     else:
         settings = Settings()
 
-    threshold = int(settings.get_setting('surround_bitrate_threshold_kbps'))
+    threshold = int(settings.get_setting('threshold_bit_rate'))
     dts_indices, all_astreams, action, low_q, high_q = s2_analyze(probe_streams, abspath, threshold)
 
     if action in ('drop', 'convert'):
@@ -215,7 +215,7 @@ def on_worker_process(data):
     else:
         settings = Settings()
 
-    threshold = int(settings.get_setting('surround_bitrate_threshold_kbps'))
+    threshold = int(settings.get_setting('threshold_bit_rate'))
     dts_indices, all_astreams, action, low_q, high_q = s2_analyze(probe_streams, abspath, threshold)
     bit_rate = settings.get_setting('bit_rate')
 
