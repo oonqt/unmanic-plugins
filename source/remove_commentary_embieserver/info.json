@@ -15,6 +15,6 @@
         "on_library_management_file_test": 50,
         "on_worker_process": 1
     },
-    "tags": "subtitle,data,ffmpeg,library file test",
+    "tags": "subtitle,data,ffmpeg,library file test,embieserver",
     "version": "0.0.4"
 }
