@@ -742,7 +742,7 @@ function rename_videofile {
   was_renamed=1
   echo "Triggering unmanic process for renamed video file" | log
   # $newname doesnt include the complete path, but we can get the complete path from the original video passed in by *arrs
-  trigger_unmanic "$(dirname "$striptracks_video")/$newname"
+  trigger_unmanic "$(dirname "$striptracks_video")/${newname}"
 
   [ "$striptracks_result" != "null" ] && [ "$striptracks_result" != "" ]
   return
