@@ -29,14 +29,18 @@ logger = logging.getLogger("Unmanic.Plugin.notify_emby")
 class Settings(PluginSettings):
     settings = {
         "emby_url": "http://localhost:8096",
-        "emby_key": "",
+        "emby_key": "XXXXXX",
     }
 
     def __init__(self, *args, **kwargs):
         super(Settings, self).__init__(*args, **kwargs)
         self.form_settings = {
-            "emby_url": "Enter the url to your Emby server",
-            "emby_key": "Enter your Emby API key"
+            "emby_url": {
+                label: "Enter the url to your Emby server",
+            },
+            "emby_key": {
+                label: "Enter your Emby API key"
+            }
         }
 
 
