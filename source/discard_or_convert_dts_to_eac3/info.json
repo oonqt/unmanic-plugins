@@ -15,5 +15,5 @@
         "on_worker_process": 0
     },
     "tags": "audio,encoder,ffmpeg,library file test,embieserver",
-    "version": "0.1.8"
+    "version": "0.1.9"
 }
