@@ -21,6 +21,7 @@
 """
 import logging
 import requests
+import time
 from unmanic.libs.unplugins.settings import PluginSettings
 
 # Configure plugin logger
@@ -30,6 +31,7 @@ class Settings(PluginSettings):
     settings = {
         "emby_url": "http://localhost:8096",
         "emby_key": "XXXXXX",
+        "plugin_delay": 0
     }
 
     def __init__(self, *args, **kwargs):
@@ -40,6 +42,9 @@ class Settings(PluginSettings):
             },
             "emby_key": {
                 "label": "Enter your Emby API key"
+            },
+            "plugin_delay": {
+                "label": "The amount of time in seconds to delay proceeding post-processing queue item (ie. sonarr, radarr). Leave at 0 to disable."
             }
         }
 
@@ -80,6 +85,11 @@ def on_postprocessor_task_results(data):
     file_path = data.get('file_in')
     emby_url = settings.get_setting("emby_url")
     emby_key = settings.get_setting("emby_key")
+    plugin_delay = settings.get_setting("plugin_delay")
+    
     update_emby(emby_key, emby_url, file_path)
+
+    logger.info("Sleeping for {} seconds before proceeding to next task".format(plugin_delay))
+    time.sleep(plugin_delay)
 
     return data

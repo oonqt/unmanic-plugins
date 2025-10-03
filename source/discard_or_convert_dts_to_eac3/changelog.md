@@ -8,3 +8,6 @@
 
 **<span style="color:#56adda">0.1.0</span>**
 - Initial revamp from v0.0.1
+
+**<span style="color:#56adda">0.1.9</span>**
+- Completed new features/testing/bug fixes

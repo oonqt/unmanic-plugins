@@ -7,3 +7,6 @@
 
 **<span style="color:#56adda">0.1.0</span>**
 - Initial version - based on notify_jellyfin 0.0.5 by Jay (yajrendrag)
+
+**<span style="color:#56adda">0.1.2</span>**
+- Added ability to delay next items in post-processor
