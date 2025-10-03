@@ -36,10 +36,10 @@ class Settings(PluginSettings):
         super(Settings, self).__init__(*args, **kwargs)
         self.form_settings = {
             "emby_url": {
-                label: "Enter the url to your Emby server",
+                "label": "Enter the url to your Emby server",
             },
             "emby_key": {
-                label: "Enter your Emby API key"
+                "label": "Enter your Emby API key"
             }
         }
 
