@@ -742,7 +742,8 @@ function rename_videofile {
   was_renamed=1
   echo "Triggering unmanic process for renamed video file" | log
   # $newname doesnt include the complete path, but we can get the complete path from the original video passed in by *arrs
-  trigger_unmanic "$(dirname "$striptracks_video")/${newname}"
+  # We must also call basename on newname as when episode files are renamed, the path containing the season folder is returned. we dont need it as it is already part of $striptracks_video
+  trigger_unmanic "$(dirname "$striptracks_video")/$(basename "$newname")"
 
   [ "$striptracks_result" != "null" ] && [ "$striptracks_result" != "" ]
   return
