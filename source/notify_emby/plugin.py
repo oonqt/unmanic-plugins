@@ -87,7 +87,7 @@ def on_postprocessor_task_results(data):
     emby_key = settings.get_setting("emby_key")
     plugin_delay = settings.get_setting("plugin_delay")
     
-    update_emby(emby_key, emby_url, file_path)
+    update_emby(emby_url, emby_key, file_path)
 
     logger.info("Sleeping for {} seconds before proceeding to next task".format(plugin_delay))
     time.sleep(plugin_delay)
