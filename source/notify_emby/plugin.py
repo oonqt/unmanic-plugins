@@ -90,6 +90,6 @@ def on_postprocessor_task_results(data):
     update_emby(emby_key, emby_url, file_path)
 
     logger.info("Sleeping for {} seconds before proceeding to next task".format(plugin_delay))
-    time.sleep(plugin_delay)
+    time.sleep(int(plugin_delay))
 
     return data
