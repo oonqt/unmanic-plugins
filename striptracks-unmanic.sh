@@ -482,7 +482,7 @@ function trigger_unmanic {
     local library_name=$library_movie_name
   fi
 
-  echo "$trigger is triggering Unmanic for: $file" | log
+  echo "$trigger is triggering Unmanic for: $file (Library: $library_name)" | log
 
   curl --silent -o /dev/null -X 'POST' \
     "${unmanic_url}/unmanic/api/v2/pending/create" \
