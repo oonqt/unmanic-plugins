@@ -19,11 +19,14 @@ from unmanic.libs.unplugins.settings import PluginSettings
 logger = logging.getLogger("Unmanic.Plugin.remove_stereo_if_has_multichannel")
 
 class Settings(PluginSettings):
+    settings = {
+        "keep_flac_stereo": False
+    }
+
     def __init__(self, *args, **kwargs):
         super(Settings, self).__init__(*args, **kwargs)
-        self.form_settings = {
+        self.form_settings = { 
             'keep_flac_stereo': {
-                'value': False,
                 'label': 'Keep FLAC Stereo Tracks',
                 'type': 'bool'
             }
