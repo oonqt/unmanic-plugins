@@ -190,7 +190,7 @@ class PluginStreamMapper(StreamMapper):
         logger.debug("Custom mapping: keeping stream #{}, copying (no re-encode)".format(stream_id))
         return {
             'stream_mapping': [f'-map 0:{stream_id}'],
-            'stream_encoding': ['-c', 'copy'],
+            'stream_encoding': [f'-c:{stream_id} copy'],        
         }
 
 
