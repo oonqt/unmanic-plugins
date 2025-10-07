@@ -10,3 +10,6 @@
 
 **<span style="color:#56adda">0.1.2</span>**
 - Added ability to delay next items in post-processor
+
+**<span style="color:#56adda">0.1.6</span>**
+- Fixed errors on handling failed tasks with no output file

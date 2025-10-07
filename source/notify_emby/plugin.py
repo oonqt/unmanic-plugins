@@ -82,11 +82,15 @@ def on_postprocessor_task_results(data):
     else:
         settings = Settings()
 
-    file_path = data.get('destination_files')[0] # May cause issues when multiple files are extracted from one (ie embedded subtitles extracted to external)
+    destination_files = data.get('destination_files') 
+    if (len(destination_files) == 0):
+        logger.info("No destination file found. Skipping Emby update")
+        return data
+
+    file_path = destination_files[0] # May cause issues when multiple files are extracted from one (ie embedded subtitles extracted to external), but we assume input file wil always be the first item
     emby_url = settings.get_setting("emby_url")
     emby_key = settings.get_setting("emby_key")
     plugin_delay = settings.get_setting("plugin_delay")
-    
     update_emby(emby_url, emby_key, file_path)
 
     logger.info("Sleeping for {} seconds before proceeding to next task".format(plugin_delay))
