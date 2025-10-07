@@ -130,8 +130,8 @@ class PluginStreamMapper(StreamMapper):
                             codec_name = (codec_field.get('name') or codec_field.get('codec_name') or '').lower()
                         else:
                             codec_name = str(codec_field).lower()
-                        except Exception:
-                            codec_name = ''
+                    except Exception:
+                        codec_name = ''
 
                     if self.keep_flac_stereo and codec_name == 'flac':
                         logger.info("Keeping FLAC stereo stream (lang='{}', stream={}) due to keep_flac_stereo setting.".format(lang, s))
