@@ -41,6 +41,8 @@ class PluginStreamMapper(StreamMapper):
         if not self.probe:
             return []
 
+        return self.probe.get_streams()
+
         # Preferred: probe.get_streams()
         if hasattr(self.probe, 'get_streams') and callable(self.probe.get_streams):
             try:
@@ -73,7 +75,7 @@ class PluginStreamMapper(StreamMapper):
         Returns: dict(lang_code -> [stream, ...])
         Language detection checks tags.language, stream['language'], then 'und'.
         """
-        streams = self._get_probe_streams()
+        streams = probe.get_probe()["streams"]
         lang_map = {}
 
         for s in streams:
@@ -111,7 +113,7 @@ class PluginStreamMapper(StreamMapper):
         Returns True if there are streams to remove.
         """
         self._streams_to_remove = []
-        streams = self._get_probe_streams()
+        streams = probe.get_probe()["streams"]
         if not streams:
             logger.debug("No streams found in probe.")
             return False
