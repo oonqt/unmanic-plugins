@@ -183,7 +183,6 @@ class PluginStreamMapper(StreamMapper):
 
         logger.debug("Using custom get_ffmpeg_args() with explicit stream mapping.")
 
-        args = ['-hide_banner', '-loglevel', 'info', '-y']
         probe_data = self.probe.get_probe()
         streams = probe_data.get('streams', [])
 
@@ -191,14 +190,21 @@ class PluginStreamMapper(StreamMapper):
             logger.warning("No streams found in probe, nothing to map.")
             return []
 
+        args = []
         for s in streams:
             idx = s.get('index')
             if idx is None:
+                idx = s.get('id')
+            if idx is None:
                 continue
+
             try:
                 idx = int(idx)
             except Exception:
-                continue
+                try:
+                    idx = int(str(idx).split(':')[-1])
+                except Exception:
+                    continue
 
             if idx in self._streams_to_remove:
                 logger.debug(f"Skipping stereo stream #{idx} (to be removed)")
@@ -268,8 +274,17 @@ def on_worker_process(data):
 
     if mapper.streams_need_processing():
         mapper.set_output_file(data.get('file_out'))
-        ffmpeg_args = mapper.get_ffmpeg_args()
-        ffmpeg_args += ['-c', 'copy']
+        
+        ffmpeg_args = [
+            '-hide_banner', '-loglevel', 'info',
+            '-i', abspath,
+            '-strict', '-2', '-max_muxing_queue_size', '4096'
+        ]
+
+        ffmpeg_args += mapper.get_ffmpeg_args()
+
+        ffmpeg_args += ['-y', data.get('file_out')]
+
         data['exec_command'] = ['ffmpeg'] + ffmpeg_args
 
         parser = Parser(logger)
