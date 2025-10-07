@@ -172,26 +172,26 @@ class PluginStreamMapper(StreamMapper):
 
         return idx in self._streams_to_remove
 
-        def custom_stream_mapping(self, stream_info: dict, stream_id: int):
-            """
-            If this stream is scheduled for removal -> return an empty mapping to drop it.
-            Otherwise return an explicit mapping that copies the stream (no re-encode).
-            """
-            # If stream is scheduled to be removed, drop it
-            if stream_id in self._streams_to_remove:
-                logger.debug("Custom mapping: removing stream #{}".format(stream_id))
-                return {
-                    'stream_mapping': [],
-                    'stream_encoding': [],
-                }
-
-            # Otherwise explicitly map and copy the stream to avoid any re-encoding.
-            # Using the same style your plugin uses elsewhere ('-map 0:<index>' and '-c:<index> copy').
-            logger.debug("Custom mapping: keeping stream #{}, copying (no re-encode)".format(stream_id))
+    def custom_stream_mapping(self, stream_info: dict, stream_id: int):
+        """
+        If this stream is scheduled for removal -> return an empty mapping to drop it.
+        Otherwise return an explicit mapping that copies the stream (no re-encode).
+        """
+        # If stream is scheduled to be removed, drop it
+        if stream_id in self._streams_to_remove:
+            logger.debug("Custom mapping: removing stream #{}".format(stream_id))
             return {
-                'stream_mapping': [f'-map 0:{stream_id}'],
-                'stream_encoding': [f'-c:{stream_id} copy'],
+                'stream_mapping': [],
+                'stream_encoding': [],
             }
+
+        # Otherwise explicitly map and copy the stream to avoid any re-encoding.
+        # Using the same style your plugin uses elsewhere ('-map 0:<index>' and '-c:<index> copy').
+        logger.debug("Custom mapping: keeping stream #{}, copying (no re-encode)".format(stream_id))
+        return {
+            'stream_mapping': [f'-map 0:{stream_id}'],
+            'stream_encoding': ['-c', 'copy'],
+        }
 
 
 def on_library_management_file_test(data):
