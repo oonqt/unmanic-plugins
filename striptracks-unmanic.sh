@@ -468,7 +468,6 @@ function trigger_unmanic {
   local file="$1"
 
   if [[ "${striptracks_video_api}" == "episode" ]]; then
-    local trigger="Sonarr"
     local library_id=$library_tv_id
     local library_name=$library_tv_name
 
@@ -477,12 +476,11 @@ function trigger_unmanic {
       library_name=$library_anime_name
     fi
   elif [[ "${striptracks_video_api}" == "movie" ]]; then
-    local trigger="Radarr"
     local library_id=$library_movie_id
     local library_name=$library_movie_name
   fi
 
-  echo "$trigger is triggering Unmanic for: $file (Library: $library_name)" | log
+  echo "Triggering Unmanic for: $file (Library: $library_name)" | log
 
   curl --silent -o /dev/null -X 'POST' \
     "${unmanic_url}/unmanic/api/v2/pending/create" \
