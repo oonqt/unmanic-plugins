@@ -91,7 +91,8 @@ class PluginStreamMapper(StreamMapper):
         Returns True if there are streams to remove.
         """
         self._streams_to_remove = []
-        streams = self.probe.get_probe()["streams"]
+        probe_data = self.probe.get_probe()
+        streams = probe_data.get("streams", [])
         if not streams:
             logger.debug("No streams found in probe.")
             return False
@@ -99,19 +100,25 @@ class PluginStreamMapper(StreamMapper):
         lang_map = self._collect_audio_by_language()
 
         for lang, s_list in lang_map.items():
-            # Check for presence of multichannel (>2) in this language
-            has_multichannel = any(int(s.get('channels') or 0) > 2 for s in s_list if s.get('channels'))
+            # Helper to safely extract channel count
+            def get_channels(stream):
+                ch = stream.get('channels')
+                if ch is None and 'codec' in stream and isinstance(stream['codec'], dict):
+                    ch = stream['codec'].get('channels')
+                try:
+                    return int(ch)
+                except Exception:
+                    return 0
+
+            # Check if any track in this language is multichannel
+            has_multichannel = any(get_channels(s) > 2 for s in s_list)
 
             if not has_multichannel:
                 continue
 
-            # mark stereo tracks (==2 channels) for removal
+            # Mark stereo tracks for removal
             for s in s_list:
-                try:
-                    ch = int(s.get('channels') or 0)
-                except Exception:
-                    continue
-
+                ch = get_channels(s)
                 if ch == 2:
                     codec_name = (s.get('codec_name') or '').lower()
                     if self.keep_flac_stereo and codec_name == 'flac':
@@ -121,12 +128,14 @@ class PluginStreamMapper(StreamMapper):
                     idx = s.get('index') or s.get('id')
                     if idx is None:
                         continue
-                    idx = int(idx)
+                    try:
+                        idx = int(idx)
+                    except Exception:
+                        continue
 
                     if idx not in self._streams_to_remove:
                         logger.info(f"Marking stereo stream #{idx} (lang='{lang}') for removal because a multichannel stream exists.")
                         self._streams_to_remove.append(idx)
-
 
         if self._streams_to_remove:
             logger.debug("Streams to remove: {}".format(self._streams_to_remove))
