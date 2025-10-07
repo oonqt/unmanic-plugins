@@ -33,49 +33,13 @@ class PluginStreamMapper(StreamMapper):
         except Exception:
             pass
 
-    def _get_probe_streams(self):
-        """
-        Robustly extract stream list from Probe instance (works across versions).
-        Returns a list of stream dicts.
-        """
-        if not self.probe:
-            return []
-
-        return self.probe.get_streams()
-
-        # Preferred: probe.get_streams()
-        if hasattr(self.probe, 'get_streams') and callable(self.probe.get_streams):
-            try:
-                return self.probe.get_streams()
-            except Exception:
-                pass
-
-        # Common attribute: probe.streams
-        if hasattr(self.probe, 'streams'):
-            try:
-                return self.probe.streams
-            except Exception:
-                pass
-
-        # Fallback to probe.data['streams'] or similar
-        for attr in ('data', 'probe', 'parsed', 'ffprobe'):
-            if hasattr(self.probe, attr):
-                try:
-                    data = getattr(self.probe, attr)
-                    if isinstance(data, dict) and data.get('streams'):
-                        return data.get('streams')
-                except Exception:
-                    pass
-
-        return []
-
     def _collect_audio_by_language(self):
         """
         Group audio streams by language tag.
         Returns: dict(lang_code -> [stream, ...])
         Language detection checks tags.language, stream['language'], then 'und'.
         """
-        streams = probe.get_probe()["streams"]
+        streams = self.probe.get_probe()["streams"]
         lang_map = {}
 
         for s in streams:
@@ -113,7 +77,7 @@ class PluginStreamMapper(StreamMapper):
         Returns True if there are streams to remove.
         """
         self._streams_to_remove = []
-        streams = probe.get_probe()["streams"]
+        streams = self.probe.get_probe()["streams"]
         if not streams:
             logger.debug("No streams found in probe.")
             return False
