@@ -150,8 +150,8 @@ class PluginStreamMapper(StreamMapper):
         if stream_id in self._streams_to_remove:
             logger.debug("Custom mapping: removing stream #{}".format(stream_id))
             return {
-                'stream_mapping': [],
-                'stream_encoding': [],
+                'stream_mapping': [f'-map 0:{stream_id}'],
+                'stream_encoding': [f'-c:{stream_id} copy'],
             }
         return None
 
