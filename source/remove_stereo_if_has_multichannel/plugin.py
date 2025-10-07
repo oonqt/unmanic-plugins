@@ -91,8 +91,7 @@ class PluginStreamMapper(StreamMapper):
         Returns True if there are streams to remove.
         """
         self._streams_to_remove = []
-        probe_data = self.probe.get_probe()
-        streams = probe_data.get("streams", [])
+        streams = self.probe.get_probe()["streams"]
         if not streams:
             logger.debug("No streams found in probe.")
             return False
@@ -100,41 +99,39 @@ class PluginStreamMapper(StreamMapper):
         lang_map = self._collect_audio_by_language()
 
         for lang, s_list in lang_map.items():
-            # Helper to safely extract channel count
-            def get_channels(stream):
-                ch = stream.get('channels')
-                if ch is None and 'codec' in stream and isinstance(stream['codec'], dict):
-                    ch = stream['codec'].get('channels')
+            # Check for presence of mulitchannel (>2) in this language
+            has_multichannel = False
+            for s in s_list:
                 try:
-                    return int(ch)
+                    ch = int(s.get('channels') or 0)
+                    if ch > 2:
+                        has_multichannel = True
+                        break
                 except Exception:
-                    return 0
-
-            # Check if any track in this language is multichannel
-            has_multichannel = any(get_channels(s) > 2 for s in s_list)
+                    continue
 
             if not has_multichannel:
+                # nothing to do for this language
                 continue
 
-            # Mark stereo tracks for removal
+            # mark stereo tracks (==2 channels) for removal
             for s in s_list:
-                ch = get_channels(s)
+                try:
+                    ch = int(s.get('channels') or 0)
+                except Exception:
+                    continue
                 if ch == 2:
-                    codec_name = (s.get('codec_name') or '').lower()
-                    if self.keep_flac_stereo and codec_name == 'flac':
-                        logger.info(f"Keeping FLAC stereo stream (lang='{lang}') due to setting.")
-                        continue  # Skip removing FLAC stereo
-
-                    idx = s.get('index') or s.get('id')
+                    idx = s.get('index')
                     if idx is None:
+                        idx = s.get('id')
+                    if idx is None:
+                        # try to derive index from stream dict keys (unlikely)
                         continue
-                    try:
-                        idx = int(idx)
-                    except Exception:
-                        continue
-
+                    idx = int(idx)
                     if idx not in self._streams_to_remove:
-                        logger.info(f"Marking stereo stream #{idx} (lang='{lang}') for removal because a multichannel stream exists.")
+                        logger.info(
+                            "Marking stereo stream #{} (lang='{}') for removal because a multichannel stream exists.".format(idx, lang)
+                        )
                         self._streams_to_remove.append(idx)
 
         if self._streams_to_remove:
@@ -183,8 +180,7 @@ def on_library_management_file_test(data):
     probe = Probe(logger, allowed_mimetypes=['video'])
     if not probe.file(abspath):
         return data
-         
-    # Configure settings object (maintain compatibility with v1 plugins)
+
     if data.get('library_id'):
         settings = Settings(library_id=data.get('library_id'))
     else:
@@ -193,7 +189,7 @@ def on_library_management_file_test(data):
     mapper = PluginStreamMapper()
     mapper.set_probe(probe)
     mapper.set_input_file(abspath)
-    mapper.keep_flac = settings.get_setting('keep_flac_stereo')
+    mapper.keep_flac_stereo = bool(settings.get_setting('keep_flac_stereo'))
 
     if mapper.streams_need_processing():
         data['add_file_to_pending_tasks'] = True
@@ -217,7 +213,6 @@ def on_worker_process(data):
     if not probe.file(abspath):
         return data
 
-    # Configure settings object (maintain compatibility with v1 plugins)
     if data.get('library_id'):
         settings = Settings(library_id=data.get('library_id'))
     else:
@@ -226,7 +221,7 @@ def on_worker_process(data):
     mapper = PluginStreamMapper()
     mapper.set_probe(probe)
     mapper.set_input_file(abspath)
-    mapper.keep_flac = settings.get_setting('keep_flac_stereo')
+    mapper.keep_flac_stereo = bool(settings.get_setting('keep_flac_stereo'))
 
     if mapper.streams_need_processing():
         mapper.set_output_file(data.get('file_out'))
