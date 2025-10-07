@@ -190,7 +190,7 @@ class PluginStreamMapper(StreamMapper):
         logger.debug("Custom mapping: keeping stream #{}, copying (no re-encode)".format(stream_id))
         return {
             'stream_mapping': [f'-map 0:{stream_id}'],
-            'stream_encoding': [f'-c:{stream_id} copy'],        
+            'stream_encoding': [],
         }
 
 
@@ -250,6 +250,7 @@ def on_worker_process(data):
     if mapper.streams_need_processing():
         mapper.set_output_file(data.get('file_out'))
         ffmpeg_args = mapper.get_ffmpeg_args()
+        ffmpeg_args += ['-c', 'copy']
         data['exec_command'] = ['ffmpeg'] + ffmpeg_args
 
         parser = Parser(logger)
