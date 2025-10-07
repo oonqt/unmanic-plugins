@@ -4,3 +4,6 @@
 
 **<span style="color:#56adda">0.0.4</span>**
 - Fixed usecase issues
+
+**<span style="color:#56adda">0.0.5</span>**
+- Fixed not removing commentary tracks tagged in other languages

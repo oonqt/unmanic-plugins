@@ -41,23 +41,38 @@ class PluginStreamMapper(StreamMapper):
 
     def test_stream_needs_processing(self, stream_info: dict):
         """Check if file has data streams"""
-        data_stream_codec_types = [
-            'audio',
-        ]
-
-        data_stream_tags = [
-            'Commentary',
+        commentary_stream_tags = [
             'commentary',
-
+            'kommentarspor',      # Danish/Norwegian: “commentary track”
+            'kommentar',          # German, Danish, Norwegian, Swedish
+            'commentaire',        # French
+            'comentario',         # Spanish
+            'comentários',        # Portuguese
+            'commento',           # Italian
+            'comentariu',         # Romanian
+            'комментарий',        # Russian
+            'коментар',           # Ukrainian/Bulgarian/Serbian
+            'komentář',           # Czech
+            'komentarz',          # Polish
+            'коментарий',         # Macedonian
+            'komentár',           # Slovak
+            'komentari',          # Indonesian/Malay
+            'コメンタリー',         # Japanese (Commentary)
+            '해설',               # Korean (Haeseol = Commentary)
+            '评论音轨',            # Simplified Chinese (Commentary track)
+            '評論音軌',            # Traditional Chinese (Commentary track)
         ]
 
-        for tag in data_stream_tags:
+        if stream_info.get('codec_type').lower() != 'audio':
+            return False
+
+        for tag in commentary_stream_tags:
             try:
-                if stream_info.get('codec_type').lower() in data_stream_codec_types and tag in stream_info.get('tags').get('title').lower():
+                if tag in stream_info.get('tags').get('title').lower():
                     return True
             except AttributeError:
-                if stream_info.get('codec_type').lower() in data_stream_codec_types:
-                    return False
+                return False
+
         return False       
 
     def custom_stream_mapping(self, stream_info: dict, stream_id: int):
