@@ -4,7 +4,7 @@
         1,
         2
     ],
-    "description": "Instructs Emby to do a scan targetting file that was imported, rather than the ",
+    "description": "Instructs Emby to do a scan targetting file that was imported",
     "icon": "https://raw.githubusercontent.com/oonqt/unmanic-plugins/master/source/notify_emby/icon.png",
     "id": "notify_emby",
     "name": "Notify Emby",
