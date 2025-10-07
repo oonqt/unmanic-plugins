@@ -166,8 +166,7 @@ class PluginStreamMapper(StreamMapper):
             idx = int(stream_info.get('index'))
         except Exception:
             try:
-             data['exec_command'] = ['ffmpeg'] + ffmpeg_args
-           idx = int(stream_info.get('id'))
+                idx = int(stream_info.get('id'))
             except Exception:
                 return False
 
@@ -213,7 +212,6 @@ class PluginStreamMapper(StreamMapper):
         args += ['-c', 'copy']
 
         return args
-
 
 def on_library_management_file_test(data):
     """
