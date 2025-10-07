@@ -4,174 +4,259 @@
 """
     plugins.__init__.py
 
-    Written by:               rechigo
+    Plugin behaviour: Remove stereo (2-channel) audio streams when there exists
+    a multichannel (>2) audio stream with the same language.
 
-    Copyright:
-        Copyright (C) 2025 Rechigo
-
-        This program is free software: you can redistribute it and/or modify it under the terms of the GNU General
-        Public License as published by the Free Software Foundation, version 3.
-
-        This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
-        implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
-        for more details.
-
-        You should have received a copy of the GNU General Public License along with this program.
-        If not, see <https://www.gnu.org/licenses/>.
-
+    NOTE: This file drops backwards compatibility with the previous
+    max_num_audio_channels behaviour — it only implements the behaviour above.
 """
+
 import logging
 
 from remove_audio_stream_by_channels.lib.ffmpeg import StreamMapper, Probe, Parser
 
-# Configure plugin logger
 logger = logging.getLogger("Unmanic.Plugin.remove_stereo_if_has_multichannel")
+
 
 class PluginStreamMapper(StreamMapper):
     def __init__(self):
+        # Only care about audio streams
         super(PluginStreamMapper, self).__init__(logger, ['audio'])
         self.settings = None
+        self.probe = None
+        self._streams_to_remove = []
 
     def set_settings(self, settings):
         self.settings = settings
 
-    def test_max_num_audio_channels(self, channels, codec_type, stream_id):
-        max_channels = int(self.settings.get_setting('max_num_audio_channels'))
-        if codec_type == 'audio' and channels > max_channels:
-            # Found a matching audio stream. Process this stream to remove it
+    def set_probe(self, probe):
+        self.probe = probe
+        try:
+            # try to preserve parent's behaviour if present
+            super(PluginStreamMapper, self).set_probe(probe)
+        except Exception:
+            pass
+
+    def _get_probe_streams(self):
+        """
+        Robustly extract stream list from Probe instance (works across versions).
+        Returns a list of stream dicts.
+        """
+        if not self.probe:
+            return []
+
+        # Preferred: probe.get_streams()
+        if hasattr(self.probe, 'get_streams') and callable(self.probe.get_streams):
+            try:
+                return self.probe.get_streams()
+            except Exception:
+                pass
+
+        # Common attribute: probe.streams
+        if hasattr(self.probe, 'streams'):
+            try:
+                return self.probe.streams
+            except Exception:
+                pass
+
+        # Fallback to probe.data['streams'] or similar
+        for attr in ('data', 'probe', 'parsed', 'ffprobe'):
+            if hasattr(self.probe, attr):
+                try:
+                    data = getattr(self.probe, attr)
+                    if isinstance(data, dict) and data.get('streams'):
+                        return data.get('streams')
+                except Exception:
+                    pass
+
+        return []
+
+    def _collect_audio_by_language(self):
+        """
+        Group audio streams by language tag.
+        Returns: dict(lang_code -> [stream, ...])
+        Language detection checks tags.language, stream['language'], then 'und'.
+        """
+        streams = self._get_probe_streams()
+        lang_map = {}
+
+        for s in streams:
+            try:
+                if s.get('codec_type', '').lower() != 'audio':
+                    continue
+            except Exception:
+                continue
+
+            tags = s.get('tags') or {}
+            lang = None
+            if isinstance(tags, dict):
+                lang = tags.get('language') or tags.get('LANGUAGE')
+
+            if not lang:
+                lang = s.get('language')
+
+            if not lang:
+                lang = 'und'
+
+            try:
+                lang = str(lang)
+            except Exception:
+                lang = 'und'
+
+            lang_map.setdefault(lang, []).append(s)
+
+        return lang_map
+
+    def streams_need_processing(self):
+        """
+        Determine which streams (if any) should be removed according to:
+          - For each language group, if any stream has channels > 2, mark all
+            stereo (2-channel) streams of that language for removal.
+        Returns True if there are streams to remove.
+        """
+        self._streams_to_remove = []
+        streams = self._get_probe_streams()
+        if not streams:
+            logger.debug("No streams found in probe.")
+            return False
+
+        lang_map = self._collect_audio_by_language()
+
+        for lang, s_list in lang_map.items():
+            # Check for presence of mulitchannel (>2) in this language
+            has_multichannel = False
+            for s in s_list:
+                try:
+                    ch = int(s.get('channels') or 0)
+                    if ch > 2:
+                        has_multichannel = True
+                        break
+                except Exception:
+                    continue
+
+            if not has_multichannel:
+                # nothing to do for this language
+                continue
+
+            # mark stereo tracks (==2 channels) for removal
+            for s in s_list:
+                try:
+                    ch = int(s.get('channels') or 0)
+                except Exception:
+                    continue
+                if ch == 2:
+                    idx = s.get('index')
+                    if idx is None:
+                        idx = s.get('id')
+                    if idx is None:
+                        # try to derive index from stream dict keys (unlikely)
+                        continue
+                    idx = int(idx)
+                    if idx not in self._streams_to_remove:
+                        logger.info(
+                            "Marking stereo stream #{} (lang='{}') for removal because a multichannel stream exists.".format(idx, lang)
+                        )
+                        self._streams_to_remove.append(idx)
+
+        if self._streams_to_remove:
+            logger.debug("Streams to remove: {}".format(self._streams_to_remove))
             return True
-        else:
-            logger.warning(
-                "Stream #{} in file '{}' is not audio or it's number of channels is <= max. Ignoring".format(stream_id, self.input_file))
+
+        logger.debug("No stereo streams require removal.")
         return False
 
     def test_stream_needs_processing(self, stream_info: dict):
-        """Only keep streams where number of audio channels <= max or are not audio"""
-        return self.test_max_num_audio_channels(int(stream_info.get('channels')), stream_info.get('codec_type', '').lower(), stream_info.get('index'))
+        """
+        Called by base StreamMapper to decide per-stream processing.
+        Return True only for streams we've scheduled for removal.
+        """
+        try:
+            idx = int(stream_info.get('index'))
+        except Exception:
+            try:
+                idx = int(stream_info.get('id'))
+            except Exception:
+                return False
+
+        return idx in self._streams_to_remove
 
     def custom_stream_mapping(self, stream_info: dict, stream_id: int):
-        """Remove this stream"""
-        return {
-            'stream_mapping':  [],
-            'stream_encoding': [],
-        }
+        """
+        If this stream is scheduled for removal, return an empty mapping to drop it.
+        Otherwise return None to allow the base mapper to handle the stream normally.
+        """
+        if stream_id in self._streams_to_remove:
+            logger.debug("Custom mapping: removing stream #{}".format(stream_id))
+            return {
+                'stream_mapping': [],
+                'stream_encoding': [],
+            }
+        return None
 
 
 def on_library_management_file_test(data):
     """
-    Runner function - enables additional actions during the library management file tests.
-
-    The 'data' object argument includes:
-        path                            - String containing the full path to the file being tested.
-        issues                          - List of currently found issues for not processing the file.
-        add_file_to_pending_tasks       - Boolean, is the file currently marked to be added to the queue for processing.
-
-    :param data:
-    :return:
-
+    During library tests mark the file for processing if plugin logic finds
+    stereo streams that should be removed.
     """
-    # Configure settings object (maintain compatibility with v1 plugins)
+    # create settings object (maintain compatibility with v1 plugins)
     if data.get('library_id'):
         settings = Settings(library_id=data.get('library_id'))
     else:
         settings = Settings()
 
-    # If the config is empty (not yet configured) ignore everything
-    if not settings.get_setting('max_num_audio_channels'):
-        logger.debug("Plugin has not yet been configured with a max number of audio channels. Blocking everything.")
-        return False
-
-    # Get the path to the file
     abspath = data.get('path')
-
-    # Get file probe
     probe = Probe(logger, allowed_mimetypes=['video'])
     if not probe.file(abspath):
-        # File probe failed, skip the rest of this test
         return data
 
-    # Get stream mapper
     mapper = PluginStreamMapper()
     mapper.set_settings(settings)
     mapper.set_probe(probe)
-
-    # Set the input file
     mapper.set_input_file(abspath)
 
     if mapper.streams_need_processing():
-        # Mark this file to be added to the pending tasks
         data['add_file_to_pending_tasks'] = True
-        logger.debug("File '{}' should be added to task list. Probe found streams require processing.".format(abspath))
+        logger.debug("File '{}' should be added to task list. Probe found stereo streams to remove.".format(abspath))
     else:
-        logger.debug("File '{}' does not contain streams that require processing.".format(abspath))
+        logger.debug("File '{}' does not require processing.".format(abspath))
 
     del mapper
-
     return data
 
 
 def on_worker_process(data):
     """
-    Runner function - enables additional configured processing jobs during the worker stages of a task.
-
-    The 'data' object argument includes:
-        exec_command            - A command that Unmanic should execute. Can be empty.
-        command_progress_parser - A function that Unmanic can use to parse the STDOUT of the command to collect progress stats. Can be empty.
-        file_in                 - The source file to be processed by the command.
-        file_out                - The destination that the command should output (may be the same as the file_in if necessary).
-        original_file_path      - The absolute path to the original file.
-        repeat                  - Boolean, should this runner be executed again once completed with the same variables.
-
-    :param data:
-    :return:
-
+    When worker runs, generate ffmpeg args to drop the scheduled stereo streams.
     """
-    # Default to no FFMPEG command required. This prevents the FFMPEG command from running if it is not required
     data['exec_command'] = []
     data['repeat'] = False
 
-    # Get the path to the file
     abspath = data.get('file_in')
-
-    # Get file probe
     probe = Probe(logger, allowed_mimetypes=['video'])
     if not probe.file(abspath):
-        # File probe failed, skip the rest of this test
         return data
 
-    # Configure settings object (maintain compatibility with v1 plugins)
     if data.get('library_id'):
         settings = Settings(library_id=data.get('library_id'))
     else:
         settings = Settings()
 
-    # see if max channels is undefined
-    if not settings.get_setting('max_num_audio_channels'):
-        logger.warning("Max channels undefined")
-        return data
-
-    # Get stream mapper
     mapper = PluginStreamMapper()
     mapper.set_settings(settings)
     mapper.set_probe(probe)
-
-    # Set the input file
     mapper.set_input_file(abspath)
 
     if mapper.streams_need_processing():
-        # Set the output file
         mapper.set_output_file(data.get('file_out'))
-
-        # Get generated ffmpeg args
         ffmpeg_args = mapper.get_ffmpeg_args()
+        data['exec_command'] = ['ffmpeg'] + ffmpeg_args
 
-        # Apply ffmpeg args to command
-        data['exec_command'] = ['ffmpeg']
-        data['exec_command'] += ffmpeg_args
-
-        # Set the parser
         parser = Parser(logger)
         parser.set_probe(probe)
         data['command_progress_parser'] = parser.parse_progress
+        logger.debug("Generated ffmpeg command for '{}': ffmpeg {}".format(abspath, ' '.join(ffmpeg_args)))
+    else:
+        logger.debug("No ffmpeg command required for '{}'.".format(abspath))
 
     return data
