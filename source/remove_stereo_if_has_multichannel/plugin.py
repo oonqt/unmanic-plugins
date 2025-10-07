@@ -121,6 +121,22 @@ class PluginStreamMapper(StreamMapper):
                 except Exception:
                     continue
                 if ch == 2:
+                    codec_name = ''
+
+                    try:
+                        codec_field = s.get('codec_name') or s.get('codec') or s.get('codec_tag_string') or ''
+                        # codec_field may be dict in some probes, handle that
+                        if isinstance(codec_field, dict):
+                            codec_name = (codec_field.get('name') or codec_field.get('codec_name') or '').lower()
+                        else:
+                            codec_name = str(codec_field).lower()
+                        except Exception:
+                            codec_name = ''
+
+                    if self.keep_flac_stereo and codec_name == 'flac':
+                        logger.info("Keeping FLAC stereo stream (lang='{}', stream={}) due to keep_flac_stereo setting.".format(lang, s))
+                        continue  # Skip removing FLAC stereo
+
                     idx = s.get('index')
                     if idx is None:
                         idx = s.get('id')
