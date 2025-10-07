@@ -51,6 +51,7 @@ class PluginStreamMapper(StreamMapper):
             'commento',           # Italian
             'comentariu',         # Romanian
             'комментарий',        # Russian
+            'kомментарии',
             'коментар',           # Ukrainian/Bulgarian/Serbian
             'komentář',           # Czech
             'komentarz',          # Polish
