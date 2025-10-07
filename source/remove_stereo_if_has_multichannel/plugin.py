@@ -14,7 +14,7 @@
 import logging
 
 from remove_stereo_if_has_multichannel.lib.ffmpeg import StreamMapper, Probe, Parser
-from unmanic.libs.unplugins.settings import Settings
+from unmanic.libs.unplugins.settings import PluginSettings
 
 logger = logging.getLogger("Unmanic.Plugin.remove_stereo_if_has_multichannel")
 
