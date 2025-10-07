@@ -166,32 +166,53 @@ class PluginStreamMapper(StreamMapper):
             idx = int(stream_info.get('index'))
         except Exception:
             try:
-                idx = int(stream_info.get('id'))
+             data['exec_command'] = ['ffmpeg'] + ffmpeg_args
+           idx = int(stream_info.get('id'))
             except Exception:
                 return False
 
         return idx in self._streams_to_remove
 
-    def custom_stream_mapping(self, stream_info: dict, stream_id: int):
+    def get_ffmpeg_args(self):
         """
-        If this stream is scheduled for removal -> return an empty mapping to drop it.
-        Otherwise return an explicit mapping that copies the stream (no re-encode).
+        Generate ffmpeg args that explicitly map and copy all streams
+        except those marked for removal.
         """
-        # If stream is scheduled to be removed, drop it
-        if stream_id in self._streams_to_remove:
-            logger.debug("Custom mapping: removing stream #{}".format(stream_id))
-            return {
-                'stream_mapping': [],
-                'stream_encoding': [],
-            }
+        if not self.probe:
+            logger.error("get_ffmpeg_args() called before probe is set.")
+            return []
 
-        # Otherwise explicitly map and copy the stream to avoid any re-encoding.
-        # Using the same style your plugin uses elsewhere ('-map 0:<index>' and '-c:<index> copy').
-        logger.debug("Custom mapping: keeping stream #{}, copying (no re-encode)".format(stream_id))
-        return {
-            'stream_mapping': [f'-map 0:{stream_id}'],
-            'stream_encoding': [],
-        }
+        logger.debug("Using custom get_ffmpeg_args() with explicit stream mapping.")
+
+        args = ['-hide_banner', '-loglevel', 'info', '-y']
+        probe_data = self.probe.get_probe()
+        streams = probe_data.get('streams', [])
+
+        if not streams:
+            logger.warning("No streams found in probe, nothing to map.")
+            return []
+
+        for s in streams:
+            idx = s.get('index')
+            if idx is None:
+                continue
+            try:
+                idx = int(idx)
+            except Exception:
+                continue
+
+            if idx in self._streams_to_remove:
+                logger.debug(f"Skipping stereo stream #{idx} (to be removed)")
+                continue
+
+            # Map all other streams
+            args += ['-map', f'0:{idx}']
+            logger.debug(f"Mapping stream #{idx}")
+
+        # Copy all remaining streams without re-encoding
+        args += ['-c', 'copy']
+
+        return args
 
 
 def on_library_management_file_test(data):
