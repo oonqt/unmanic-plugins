@@ -22,12 +22,8 @@ class PluginStreamMapper(StreamMapper):
     def __init__(self):
         # Only care about audio streams
         super(PluginStreamMapper, self).__init__(logger, ['audio'])
-        self.settings = None
         self.probe = None
         self._streams_to_remove = []
-
-    def set_settings(self, settings):
-        self.settings = settings
 
     def set_probe(self, probe):
         self.probe = probe
@@ -199,11 +195,6 @@ def on_library_management_file_test(data):
     During library tests mark the file for processing if plugin logic finds
     stereo streams that should be removed.
     """
-    # create settings object (maintain compatibility with v1 plugins)
-    if data.get('library_id'):
-        settings = Settings(library_id=data.get('library_id'))
-    else:
-        settings = Settings()
 
     abspath = data.get('path')
     probe = Probe(logger, allowed_mimetypes=['video'])
@@ -211,7 +202,6 @@ def on_library_management_file_test(data):
         return data
 
     mapper = PluginStreamMapper()
-    mapper.set_settings(settings)
     mapper.set_probe(probe)
     mapper.set_input_file(abspath)
 
@@ -237,13 +227,7 @@ def on_worker_process(data):
     if not probe.file(abspath):
         return data
 
-    if data.get('library_id'):
-        settings = Settings(library_id=data.get('library_id'))
-    else:
-        settings = Settings()
-
     mapper = PluginStreamMapper()
-    mapper.set_settings(settings)
     mapper.set_probe(probe)
     mapper.set_input_file(abspath)
 
