@@ -13,3 +13,6 @@
 
 **<span style="color:#56adda">0.1.6</span>**
 - Fixed errors on handling failed tasks with no output file
+
+**<span style="color:#56adda">0.1.7</span>**
+- Fixed malformed Emby request causing no updates

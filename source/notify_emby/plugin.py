@@ -51,14 +51,21 @@ class Settings(PluginSettings):
 
 def update_emby(emby_url, emby_key, file_path):
     headers = {"X-MediaBrowser-Token": emby_key}
-    data = {"Path": file_path}
+    data = {
+        "Updates": [
+            {
+                "Path": file_path
+            }
+        ]
+    }
+
     try:
-        r = requests.post(emby_url + "/Library/Media/Updated", headers=headers, json=data)
+        r = requests.post(emby_url + "/emby/Library/Media/Updated", headers=headers, json=data)
     except (ConnectionRefusedError, requests.exceptions.ConnectionError) as error:
         logger.error("Error Connecting to Emby - unable to reach or unauthorized")
         
     if r.status_code == 204:
-        logger.info("Notifying Emby to update its library. (Path: {})".format(file_path))
+        logger.info("Notified Emby to update item: {}".format(file_path))
     else:
         logger.error("Error notifying Emby - Error Code:('{}').".format(r.status_code))
 
