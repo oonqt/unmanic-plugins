@@ -20,7 +20,4 @@ For information on the available encoder settings:
 
 ##### Config description:
 
-bit_rate - set the aggregate bit rate for all audio streams.  The default setting is 640k
-
-threshold_bit_rate - The bitrate for non-dts surround tracks to be kept
-
+Compression Level: Changes how aggressive compression is. Higher being more aggressive (smaller size, longer encodes), and smaller being less aggressive (larger size, faster encodes)

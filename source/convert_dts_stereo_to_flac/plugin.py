@@ -187,6 +187,7 @@ def on_worker_process(data):
                 '-map', '0:a:' + str(i),
                 '-c:a:' + str(i), 'flac',
                 '-compression_level', str(comp_level),
+                '-sample_fmt', 's16',
                 '-ac:' + str(i), '2',
                 '-metadata:s:a:' + str(i), 'title="FLAC Stereo"'
             ]
