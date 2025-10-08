@@ -4,7 +4,7 @@
         2
     ],
     "description": "Converts stereo DTS audio to FLAC with the parameters specified in settings",
-    "icon": "https://raw.githubusercontent.com/Unmanic/plugin.encoder_audio_aac/master/icon.png",
+    "icon": "https://raw.githubusercontent.com/k29t59dh/unmanic-plugins/master/source/aac_stereo_downmix/icon.png",
     "id": "convert_dts_stereo_to_flac",
     "name": "Convert DTS Stereo to FLAC",
     "platform": [
@@ -15,5 +15,5 @@
         "on_worker_process": 0
     },
     "tags": "audio,encoder,ffmpeg,library file test,embieserver",
-    "version": "0.0.1"
+    "version": "0.0.2"
 }

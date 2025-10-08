@@ -32,26 +32,20 @@ logger = logging.getLogger("Unmanic.Plugin.convert_dts_stereo_to_flac")
 
 class Settings(PluginSettings):
     settings = {
-        "compression_level": "6"
+        "compression_level": 6
     }
      
     def __init__(self, *args, **kwargs):
         super(Settings, self).__init__(*args, **kwargs)
         self.form_settings = {
             "compression_level": {
-                "type": "select",
                 "label": "Compression Level",
-                "options": [
-                    {"label": "0 - Fastest (Lowest Compression)", "value": "0"},
-                    {"label": "1", "value": "1"},
-                    {"label": "2", "value": "2"},
-                    {"label": "3", "value": "3"},
-                    {"label": "4", "value": "4"},
-                    {"label": "5 - Balanced", "value": "5"},
-                    {"label": "6", "value": "6"},
-                    {"label": "7", "value": "7"},
-                    {"label": "8 - Slowest (Highest Compression)", "value": "8"},
-                ],
+                "input_type": "slider",
+                "slider_options": {
+                    "step": 1,
+                    "min": 0,
+                    "max": 8
+                },
                 "tooltip": "Lower values encode faster but produce larger files. Higher values compress better but take longer.",
             }
         }
