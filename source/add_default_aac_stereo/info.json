@@ -1,0 +1,16 @@
+{
+    "author": "Rechigo (Modified from k29t59dh)",
+    "compatibility": [
+        2
+    ],
+    "description": "Add an AAC stereo track marked as default if the track has a multichannel track",
+    "icon": "https://raw.githubusercontent.com/k29t59dh/unmanic-plugins/master/source/aac_stereo_downmix/icon.png",
+    "icon_static": "/unmanic/panel/aac_stereo_downmix/static/icon.png",
+    "id": "add_default_aac_stereo",
+    "name": "Add Default AAC Stereo",
+    "priorities": {
+        "on_worker_process": 0
+    },
+    "tags": "audio, encoder, ffmpeg, stereo, downmix, aac",
+    "version": "0.0.1"
+}
