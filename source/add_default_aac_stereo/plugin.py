@@ -22,7 +22,7 @@
 
 """
 
-import logging, os, shlex
+import logging, os
 
 from unmanic.libs.unplugins.settings import PluginSettings
 from add_default_aac_stereo.lib.ffmpeg import StreamMapper, Probe, Parser
@@ -67,11 +67,15 @@ class PluginStreamMapper(StreamMapper):
         self.codec = 'aac'
         self.encoder = 'aac'
         self.settings = None
-        self.abspath = None
 
     def set_default_values(self, settings, abspath, probe):
         """
         Configure the stream mapper with defaults
+
+        :param settings:
+        :param abspath:
+        :param probe:
+        :return:
         """
         self.abspath = abspath
         # Set the file probe data
@@ -81,11 +85,13 @@ class PluginStreamMapper(StreamMapper):
         # Configure settings
         self.settings = settings
 
+
     def _get_streams_from_probe(self):
         """
         Helper to extract probe streams in a tolerant way.
         """
         try:
+            # common APIs: probe.get_probe() -> dict with 'streams'
             probe_data = None
             if hasattr(self, 'probe') and self.probe:
                 if hasattr(self.probe, 'get_probe'):
@@ -104,6 +110,7 @@ class PluginStreamMapper(StreamMapper):
             logger.debug("Unable to extract streams from probe for additional logic.")
         return []
 
+
     def _stream_language(self, stream_info: dict):
         """
         Return language tag for a stream (normalized). Falls back to 'und'.
@@ -114,39 +121,42 @@ class PluginStreamMapper(StreamMapper):
             return 'und'
         return lang.strip().lower()
 
+
     def _get_stream_bitrate_kbps(self, stream_info: dict):
         """
         Try to extract the stream bitrate (kbps) from the probe. Returns an int kbps or None.
         Common ffprobe field: 'bit_rate' (bits per second).
         """
         try:
-            br = stream_info.get('bit_rate') or None
+            br = stream_info.get('bit_rate') or stream_info.get('avg_frame_rate') or None
             if br:
+                # bit_rate is often a string like '192000' (bits/s)
                 try:
                     br_int = int(br)
                     kbps = int(round(br_int / 1000.0))
                     return kbps
                 except Exception:
+                    # Sometimes bit_rate may be a string with units or not parseable; ignore
                     pass
-            # fallback to tags (sometimes present)
+            # Some probes may include codec-specific nested fields or tags; attempt tags
             tags = stream_info.get('tags') or {}
             tag_br = tags.get('BPS') or tags.get('BITRATE') or tags.get('bitrate')
             if tag_br:
-                if isinstance(tag_br, (int, float)):
-                    return int(round(float(tag_br) / 1000.0))
-                if isinstance(tag_br, str):
-                    if tag_br.lower().endswith('k'):
+                try:
+                    br_int = int(tag_br)
+                    kbps = int(round(br_int / 1000.0))
+                    return kbps
+                except Exception:
+                    # If it's like '192k' handle that
+                    if isinstance(tag_br, str) and tag_br.lower().endswith('k'):
                         try:
                             return int(tag_br[:-1])
                         except Exception:
                             pass
-                    try:
-                        return int(round(int(tag_br) / 1000.0))
-                    except Exception:
-                        pass
         except Exception:
             logger.debug("Failed to parse bit rate from stream info.")
         return None
+
 
     def test_stream_needs_processing(self, stream_info: dict):
         """
@@ -156,6 +166,7 @@ class PluginStreamMapper(StreamMapper):
         - Only consider multichannel streams (channels > 2).
         - Do NOT add a downmix if there already exists a stereo/mono track with the same language.
         - If the stream is already AAC+stereo (or mono) do not process.
+        - Languages must match (we check tags.language on streams).
         """
         codec = (stream_info.get('codec_name') or '').lower()
         channels = int(stream_info.get('channels', 2))
@@ -166,6 +177,7 @@ class PluginStreamMapper(StreamMapper):
 
         # Only add downmix tracks for multichannel source streams
         if channels <= 2:
+            # Not multichannel; we do not create a new stereo for it.
             return False
 
         # get this stream's language (normalized)
@@ -180,196 +192,107 @@ class PluginStreamMapper(StreamMapper):
             if s_channels <= 2:
                 s_lang = self._stream_language(s)
                 if s_lang == this_lang:
+                    # Found an existing stereo/mono audio stream with same language:
+                    # we do NOT need to add a downmixed stereo for this language.
                     logger.debug("Skipping downmix for language '%s' because a stereo/mono stream already exists.", this_lang)
                     return False
 
+        # No same-language stereo/mono found and this stream is multichannel:
+        # we should add a downmixed stereo (and mark as default).
         logger.debug("Stream (lang=%s, channels=%d) requires a downmixed stereo to be added.", this_lang, channels)
         return True
 
-    def _collect_downmix_candidates(self):
-        """
-        Return a list of tuples (input_audio_index, stream_info) that should get a downmix.
-        """
-        candidates = []
-        streams = self._get_streams_from_probe()
-        for idx, s in enumerate(streams):
-            if (s.get('codec_type') or '').lower() != 'audio':
-                continue
-            try:
-                channels = int(s.get('channels', 2))
-            except Exception:
-                channels = 2
-            if channels > 2 and self.test_stream_needs_processing(s):
-                candidates.append((idx, s))
-        return candidates
 
-    def build_ffmpeg_command(self, infile: str, outfile: str):
-        """
-        Build a complete ffmpeg command that:
-        - copies all video/subtitle streams,
-        - copies original audio streams (preserve multichannel originals),
-        - appends one downmixed stereo AAC track per candidate multichannel stream,
-          with language metadata and disposition default, and with chosen bitrate.
-
-        Returns: list suitable for exec (['ffmpeg', ...])
-        """
-        probe_streams = self._get_streams_from_probe()
-
-        # start command
-        args = ['ffmpeg', '-hide_banner', '-loglevel', 'info', '-y', '-i', infile]
-
-        # We'll map video and subtitle streams explicitly (copy them)
-        # and then map each audio stream (copy). After that we map downmix outputs we generate with -filter_complex.
-        map_args = []
-        codec_args = []
-        filter_parts = []
-        downmix_maps = []
-        audio_output_counter = 0  # output audio stream index counter (increments as we add -map for audios)
-
-        # Map video streams
-        for idx, s in enumerate(probe_streams):
-            if (s.get('codec_type') or '').lower() == 'video':
-                map_args += ['-map', f'0:v:{idx}']
-        # Map subtitle streams (if any)
-        for idx, s in enumerate(probe_streams):
-            if (s.get('codec_type') or '').lower() in ('subtitle', 'subtitles', 'text'):
-                map_args += ['-map', f'0:s:{idx}']
-
-        # Map original audio streams as copies (preserve originals)
-        audio_input_order = []
-        for idx, s in enumerate(probe_streams):
-            if (s.get('codec_type') or '').lower() == 'audio':
-                map_args += ['-map', f'0:a:{idx}']
-                # set copy for this output audio index
-                codec_args += ['-c:a:{}'.format(audio_output_counter), 'copy']
-                audio_input_order.append((idx, s))
-                audio_output_counter += 1
-
-        # Determine downmix candidates (input index, stream_info)
-        downmix_candidates = self._collect_downmix_candidates()
-
-        # Build filter_complex pieces for each downmix candidate and map them
-        dm_count = 0
-        for (in_idx, sinfo) in downmix_candidates:
-            # language of this stream
-            lang = self._stream_language(sinfo)
-            # formula to use
-            formula = self.settings.get_setting('formula') or ''
-            # The formula can include characters that need not be escaped here; ffmpeg accepts the filter string as is.
-            # Create a label for this downmix
-            dm_label = f"dm{dm_count}"
-            # Build filter part: [0:a:in_idx] <formula> [dm_label]
-            # If user formula already includes an output label or a chain, they must be compatible. We assume it's a single filter (pan=...).
-            filter_parts.append(f"[0:a:{in_idx}]{formula}[{dm_label}]")
-            # Map the produced label as an output audio stream
-            downmix_maps += ['-map', f'[{dm_label}]']
-            # determine bitrate
-            target_kbps = 0
-            try:
-                target_kbps = int(self.settings.get_setting('target_bitrate_kbps') or 0)
-            except Exception:
-                target_kbps = 0
-            source_kbps = self._get_stream_bitrate_kbps(sinfo)
-            if source_kbps is not None and source_kbps > 0 and target_kbps > 0:
-                chosen_kbps = source_kbps if source_kbps < target_kbps else target_kbps
-            elif target_kbps > 0:
-                chosen_kbps = target_kbps
-            elif source_kbps is not None:
-                chosen_kbps = source_kbps
-            else:
-                chosen_kbps = 256
-            bitrate_arg = f"{int(chosen_kbps)}k"
-
-            # For this appended downmix, set codec= aac and bitrate - the output audio index is current audio_output_counter
-            codec_args += ['-c:a:{}'.format(audio_output_counter), self.encoder]
-            codec_args += ['-b:a:{}'.format(audio_output_counter), bitrate_arg]
-
-            # add metadata + disposition for this output audio index (use language tag as-is)
-            codec_args += ['-metadata:s:a:{}'.format(audio_output_counter), f"language={lang}"]
-            codec_args += ['-disposition:a:{}'.format(audio_output_counter), 'default']
-
-            audio_output_counter += 1
-            dm_count += 1
-
-        # If we created filters, combine them and add -filter_complex
-        if filter_parts:
-            filter_complex_str = ';'.join(filter_parts)
-            args += ['-filter_complex', filter_complex_str]
-            # append the downmix maps after filter_complex
-            map_args += downmix_maps
-
-        # Now append mapping args
-        args += map_args
-
-        # Add codec args for video/subs (copy)
-        args += ['-c:v', 'copy']
-        # copy subtitle streams if present
-        args += ['-c:s', 'copy']
-        # Add codec args assembled earlier (audio copy + downmixed enc args)
-        args += codec_args
-
-        # Add outfile
-        args += [outfile]
-
-        # Final command ready
-        logger.debug("Built ffmpeg command: %s", ' '.join(map(shlex.quote, args)))
-        return args
-
-    # Keep old custom_stream_mapping in case other code needs it; but we won't use it for the worker command
     def custom_stream_mapping(self, stream_info: dict, stream_id: int):
         """
-        Legacy single-stream mapping pathway (not used by the new build_ffmpeg_command()).
-        We keep it for compatibility, but the worker will use build_ffmpeg_command() which preserves originals.
+        Create a stereo AAC stream if this stream is multichannel and no stereo track
+        of the same language exists.
         """
-        stream_encoding = ['-c:a:{}'.format(stream_id), self.encoder]
-        formula = self.settings.get_setting('formula') or ''
-        custom_options = '-filter:a:{} '.format(stream_id) + formula
-        stream_encoding += custom_options.split()
-        lang = self._stream_language(stream_info)
-        stream_encoding += ['-metadata:s:a:{}'.format(stream_id), 'language={}'.format(lang)]
-        stream_encoding += ['-disposition:a:{}'.format(stream_id), 'default']
-        # bitrate logic (best-effort)
-        target_kbps = 0
+        language = stream_info.get('tags', {}).get('language', 'und')
+        channels = stream_info.get('channels', 0)
+        codec = stream_info.get('codec_name', '').lower()
+        bitrate = int(stream_info.get('bit_rate', 0))
+
+        # Skip if not multichannel
+        if channels <= 2:
+            return None
+
+        # Skip if there's already a stereo track of same language
+        for s in self.get_audio_streams():
+            if s.get('tags', {}).get('language', 'und') == language and s.get('channels', 0) <= 2:
+                return None
+
+        # Get target bitrate (in kbps)
         try:
-            target_kbps = int(self.settings.get_setting('target_bitrate_kbps') or 0)
-        except Exception:
-            target_kbps = 0
-        source_kbps = self._get_stream_bitrate_kbps(stream_info)
-        if source_kbps is not None and source_kbps > 0 and target_kbps > 0:
-            chosen_kbps = source_kbps if source_kbps < target_kbps else target_kbps
-        elif target_kbps > 0:
-            chosen_kbps = target_kbps
-        elif source_kbps is not None:
-            chosen_kbps = source_kbps
-        else:
-            chosen_kbps = 256
-        bitrate_arg = '{}k'.format(int(chosen_kbps))
-        stream_encoding += ['-b:a:{}'.format(stream_id), bitrate_arg]
+            target_bitrate_kbps = int(self.settings.get_setting('target_bitrate_kbps'))
+        except (TypeError, ValueError):
+            target_bitrate_kbps = 256  # fallback default
+
+        # Determine final bitrate (min of source and target)
+        source_kbps = bitrate // 1000 if bitrate > 0 else target_bitrate_kbps
+        final_bitrate_kbps = min(source_kbps, target_bitrate_kbps)
+        final_bitrate_str = f"{final_bitrate_kbps}k"
+
+        # Build encoding arguments
+        stream_encoding = [
+            f"-c:a:{stream_id}", "aac",
+            f"-b:a:{stream_id}", final_bitrate_str,
+            f"-metadata:s:a:{stream_id}", f"language={language}",
+            f"-disposition:a:{stream_id}", "default"
+        ]
+
+        # Map the original stream
+        stream_mapping = ['-map', f"0:a:{stream_info['index']}"]
+
+        # Downmix filter (no hardcoded :a:1 nonsense)
+        custom_filter = (
+            f"[0:a:{stream_info['index']}]"
+            "pan=stereo|c0=c2+0.30*c0+0.30*c4|c1=c2+0.30*c1+0.30*c5"
+            f"[dm{stream_id}]"
+        )
+        self.filter_complex.append(custom_filter)
 
         return {
-            'stream_mapping':  ['-map', '0:a:{}'.format(stream_id)],
+            'stream_mapping': stream_mapping,
             'stream_encoding': stream_encoding,
         }
 
 
+
 def on_library_management_file_test(data):
     """
-    Decide if file needs processing
+    Runner function - enables additional actions during the library management file tests.
+
+    The 'data' object argument includes:
+        path                            - String containing the full path to the file being tested.
+        issues                          - List of currently found issues for not processing the file.
+        add_file_to_pending_tasks       - Boolean, is the file currently marked to be added to the queue for processing.
+
+    :param data:
+    :return:
+
     """
+    # Get the path to the file
     abspath = data.get('path')
+
+    # Get file probe
     probe = Probe(logger, allowed_mimetypes=['audio', 'video'])
     if not probe.file(abspath):
+        # File probe failed, skip the rest of this test
         return data
 
+    # Configure settings object (maintain compatibility with v1 plugins)
     if data.get('library_id'):
         settings = Settings(library_id=data.get('library_id'))
     else:
         settings = Settings()
 
+    # Get stream mapper
     mapper = PluginStreamMapper()
     mapper.set_default_values(settings, abspath, probe)
 
     if mapper.streams_need_processing():
+        # Mark this file to be added to the pending tasks
         data['add_file_to_pending_tasks'] = True
         logger.debug("File '{}' should be added to task list. Probe found streams require processing.".format(abspath))
     else:
@@ -380,29 +303,55 @@ def on_library_management_file_test(data):
 
 def on_worker_process(data):
     """
-    Build and apply ffmpeg command using mapper.build_ffmpeg_command() to
-    preserve originals and append downmixed AAC stereo tracks.
+    Runner function - enables additional configured processing jobs during the worker stages of a task.
+
+    The 'data' object argument includes:
+        exec_command            - A command that Unmanic should execute. Can be empty.
+        command_progress_parser - A function that Unmanic can use to parse the STDOUT of the command to collect progress stats. Can be empty.
+        file_in                 - The source file to be processed by the command.
+        file_out                - The destination that the command should output (may be the same as the file_in if necessary).
+        original_file_path      - The absolute path to the original file.
+        repeat                  - Boolean, should this runner be executed again once completed with the same variables.
+
+    :param data:
+    :return:
+
     """
+    # Default to no FFMPEG command required. This prevents the FFMPEG command from running if it is not required
     data['exec_command'] = []
     data['repeat'] = False
 
-    infile = data.get('file_in')
-    outfile = data.get('file_out')
+    # Get the path to the file
+    abspath = data.get('file_in')
 
+    # Get file probe
     probe = Probe(logger, allowed_mimetypes=['audio', 'video'])
-    if not probe.file(infile):
+    if not probe.file(abspath):
+        # File probe failed, skip the rest of this test
         return data
 
+    # Configure settings object (maintain compatibility with v1 plugins)
     settings = Settings(library_id=data.get('library_id'))
+
+    # Get stream mapper
     mapper = PluginStreamMapper()
-    mapper.set_default_values(settings, infile, probe)
+    mapper.set_default_values(settings, abspath, probe)
 
     if mapper.streams_need_processing():
-        # Build full ffmpeg command which preserves originals and adds downmix tracks
-        ffmpeg_args = mapper.build_ffmpeg_command(infile, outfile)
+        # Set the input file
+        mapper.set_input_file(abspath)
 
-        data['exec_command'] = ffmpeg_args
+        # Set the output file
+        mapper.set_output_file(data.get('file_out'))
 
+        # Get generated ffmpeg args
+        ffmpeg_args = mapper.get_ffmpeg_args()
+
+        # Apply ffmpeg args to command
+        data['exec_command'] = ['ffmpeg']
+        data['exec_command'] += ffmpeg_args
+
+        # Set the parser
         parser = Parser(logger)
         parser.set_probe(probe)
         data['command_progress_parser'] = parser.parse_progress
