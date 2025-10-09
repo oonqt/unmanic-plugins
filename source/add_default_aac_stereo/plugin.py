@@ -218,7 +218,7 @@ class PluginStreamMapper(StreamMapper):
             return None
 
         # Skip if there's already a stereo track of same language
-        for s in self.get_audio_streams():
+        for s in self._get_streams_from_probe():
             if s.get('tags', {}).get('language', 'und') == language and s.get('channels', 0) <= 2:
                 return None
 
