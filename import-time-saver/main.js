@@ -1,7 +1,6 @@
 const axios = require('axios');
 const path = require('path');
 
-const UNMANID_LIBRARY_ID = 1;
 const EMBY_LIBRARY_ID = 8341;
 const EMBY_URL = "http://embyserver:8096";
 const EMBY_API_KEY = "d26d60b37d334aaa981533daccd7b74a";
@@ -30,12 +29,11 @@ const radarr = axios.create({
 });
 
 const outFilePath = process.argv.find(arg => arg.startsWith("--output=")).split("--output=")[1];
-const unmanicLibraryId = process.argv.find(arg => arg.startsWith("--library=")).split("--library=")[1];
 const tmdbId = path.basename(outFilePath).match(/\[tmdb-(\d+)\]/)[1];
 const movieFolder = path.dirname(outFilePath);
 
 const main = async () => {
-    if (unmanicLibraryId != UNMANID_LIBRARY_ID) return console.log(`${outFilePath} is not part of movies library`);
+    if (path.extname(outFilePath) !== '.mkv') return console.log(`${outFilePath} is not a movie file`);
 
     try { 
         const addedAt = (await radarr(`/movie?tmdbId=${tmdbId}`)).data[0].added;
