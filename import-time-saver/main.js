@@ -3,10 +3,10 @@ const path = require('path');
 
 const EMBY_LIBRARY_ID = 8341;
 const EMBY_URL = "http://embyserver:8096";
-const EMBY_API_KEY = "d26d60b37d334aaa981533daccd7b74a";
-const EMBY_ADMIN_USER = "09e1241ab43a403fb1d110ba302defe7";
+const EMBY_API_KEY = "";
+const EMBY_ADMIN_USER = "";
 const RADARR_URL = "http://radarr:7878";
-const RADARR_API_KEY = "d3d5669dbdb3402c8e0be2ced87e265e";
+const RADARR_API_KEY = "";
 const PROXY_CONF = {
     host: "192.168.1.208",
     port: 8676
