@@ -29,7 +29,6 @@ const radarr = axios.create({
 });
 
 const main = async () => {
-    
     const outFilePath = process.argv.find(arg => arg.startsWith("--output=")).split("--output=")[1];
     const movieFolder = path.dirname(outFilePath);
     const tmdbId = path.basename(outFilePath).match(/\[tmdb-(\d+)\]/)?.[1];
@@ -38,7 +37,10 @@ const main = async () => {
     if (path.extname(outFilePath) !== '.mkv') return console.log(`${outFilePath} is not a movie file`);
 
     try { 
-        const addedAt = (await radarr(`/movie?tmdbId=${tmdbId}`)).data[0].added;
+        const radarrItem = (await radarr(`/movie?tmdbId=${tmdbId}`)).data[0];
+        if (!radarrItem) return console.log(`${tmdbId} could not be found in radarr`);
+
+        const addedAt = radarrItem.added;
 
         console.log(`Found ${outFilePath} added to radarr at ${addedAt}`);
 
