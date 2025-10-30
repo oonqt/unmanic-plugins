@@ -28,11 +28,13 @@ const radarr = axios.create({
     }
 });
 
-const outFilePath = process.argv.find(arg => arg.startsWith("--output=")).split("--output=")[1];
-const tmdbId = path.basename(outFilePath).match(/\[tmdb-(\d+)\]/)[1];
-const movieFolder = path.dirname(outFilePath);
-
 const main = async () => {
+    
+    const outFilePath = process.argv.find(arg => arg.startsWith("--output=")).split("--output=")[1];
+    const movieFolder = path.dirname(outFilePath);
+    const tmdbId = path.basename(outFilePath).match(/\[tmdb-(\d+)\]/)?.[1];
+
+    if (!tmdbId) return console.log(`${outFilePath} does not contain a TMDB ID. Unable to associate with Radarr`);
     if (path.extname(outFilePath) !== '.mkv') return console.log(`${outFilePath} is not a movie file`);
 
     try { 
