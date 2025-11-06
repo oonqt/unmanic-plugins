@@ -52,19 +52,19 @@ class Settings(PluginSettings):
 
 def s2_encode(probe_streams, abspath):
     """
-    Identify stereo DTS/TrueHD audio streams.
+    Identify DTS/TrueHD audio streams that are mono (1 channel) or stereo (2 channels).
 
     Returns:
-      - dts_streams_list: list of absolute probe indices for stereo dts/truehd streams
+      - dts_streams_list: list of absolute probe indices for targeted dts/truehd streams (mono or stereo)
       - all_astreams: list of absolute probe indices for all audio streams
     """
     try:
-        # target stereo DTS / TrueHD tracks (exactly 2 channels)
+        # target mono or stereo DTS / TrueHD tracks (1 or 2 channels)
         dts_streams_list = [
             i for i in range(0, len(probe_streams))
             if "codec_type" in probe_streams[i]
             and probe_streams[i]["codec_type"] == 'audio'
-            and int(probe_streams[i].get("channels", 0)) == 2
+            and int(probe_streams[i].get("channels", 0)) in (1, 2)
             and probe_streams[i].get("codec_name", "").lower() in ["dts", "truehd"]
         ]
 
@@ -74,12 +74,12 @@ def s2_encode(probe_streams, abspath):
         ]
         return dts_streams_list, all_astreams
     except Exception:
-        logger.info("No stereo DTS/TrueHD audio streams found to encode")
+        logger.info("No mono/stereo DTS/TrueHD audio streams found to encode")
         return [],[]
 
 def on_library_management_file_test(data):
     """
-    Decide whether to add file to pending tasks based on presence of stereo DTS/TrueHD streams.
+    Decide whether to add file to pending tasks based on presence of mono/stereo DTS/TrueHD streams.
     """
     # Get the path to the file
     abspath = data.get('path')
@@ -108,12 +108,16 @@ def on_library_management_file_test(data):
         data['add_file_to_pending_tasks'] = True
         for i in range(len(all_astreams)):
             if all_astreams[i] in stream_to_encode:
+                # get channel count for the targeted absolute stream index
+                abs_idx = all_astreams[i]
+                ch = int(probe_streams[abs_idx].get("channels", 2))
+                ch_text = "mono (1ch)" if ch == 1 else "stereo (2ch)" if ch == 2 else f"{ch}ch"
                 logger.info(
-                    "audio stream '{}' is stereo DTS/TrueHD and will be re-encoded to FLAC (replacing original DTS audio stream)".format(i)
+                    "audio stream '{}' is {} DTS/TrueHD and will be re-encoded to FLAC (replacing original DTS audio stream)".format(i, ch_text)
                 )
     else:
         logger.info(
-            "do not add file '{}' to task list - no stereo (2 channel) DTS/TrueHD audio streams found".format(abspath)
+            "do not add file '{}' to task list - no mono or stereo (1 or 2 channel) DTS/TrueHD audio streams found".format(abspath)
         )
 
     return data
@@ -121,8 +125,8 @@ def on_library_management_file_test(data):
 
 def on_worker_process(data):
     """
-    Build the ffmpeg command to convert targeted stereo DTS/TrueHD audio streams to FLAC
-    with the configured compression level, and copy other streams.
+    Build the ffmpeg command to convert targeted mono/stereo DTS/TrueHD audio streams to FLAC
+    with the configured compression level, preserving mono/stereo channel count, and copy other streams.
     """
     # Default to no FFMPEG command required. This prevents the FFMPEG command from running if it is not required
     data['exec_command'] = []
@@ -177,19 +181,33 @@ def on_worker_process(data):
     # Set initial ffmpeg args
     ffmpeg_args = ['-hide_banner', '-loglevel', 'info', '-i', str(abspath), '-max_muxing_queue_size', '9999', '-strict', '-2']
 
-    # set stream maps: copy video, convert targeted audio streams to FLAC, copy other audio and subtitle/data/timetrack streams
+    # set stream maps: copy video, convert targeted audio streams to FLAC (preserve mono/stereo), copy other audio and subtitle/data/timetrack streams
     stream_map = ['-map', '0:v', '-c:v', 'copy']
     for i in range(len(all_astreams)):
-        if all_astreams[i] in stream_to_encode:
-            # convert this audio stream to flac, ensure 2 channels (stereo), set compression level
+        abs_idx = all_astreams[i]
+        if abs_idx in stream_to_encode:
+            # determine channels for this absolute stream index
+            try:
+                channels = int(probe_streams[abs_idx].get("channels", 2))
+            except Exception:
+                channels = 2
+            # ensure we set 1 for mono, 2 for stereo (fallback to 2)
+            if channels == 1:
+                target_ac = '1'
+                title = 'FLAC Mono'
+            else:
+                target_ac = '2'
+                title = 'FLAC Stereo'
+
+            # convert this audio stream to flac, ensure correct channel count, set compression level
             # use per-stream codec spec '-c:a:<idx> flac' followed by '-compression_level' (applies to next audio encodes)
             stream_map += [
                 '-map', '0:a:' + str(i),
                 '-c:a:' + str(i), 'flac',
                 '-compression_level', str(comp_level),
                 '-sample_fmt', 's16',
-                '-ac:' + str(i), '2',
-                '-metadata:s:a:' + str(i), 'title="FLAC Stereo"'
+                '-ac:' + str(i), target_ac,
+                '-metadata:s:a:' + str(i), 'title=' + title
             ]
         else:
             # copy other audio streams unchanged
