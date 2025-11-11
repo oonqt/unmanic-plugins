@@ -1,4 +1,7 @@
 
+**<span style="color:#56adda">0.0.7</span>**
+- Fix API call for rename
+
 **<span style="color:#56adda">0.0.6</span>**
 - Fix invalid episode file API call
 

@@ -38,7 +38,7 @@ from pyarr.exceptions import (
 from unmanic.libs.unplugins.settings import PluginSettings
 
 # Configure plugin logger
-logger = logging.getLogger("Unmanic.Plugin.notify_sonarr")
+logger = logging.getLogger("Unmanic.Plugin.notify_sonarr_2")
 
 
 class Settings(PluginSettings):
@@ -159,7 +159,7 @@ def update_mode(api, dest_path, rename_files):
     if rename_files:
         time.sleep(10) # Must give time (more than Radarr) for the refresh to complete before we run the rename.
         try:
-            rename_list = api.get_episode_file(series_id, True)
+            rename_list = api.get_episode_file(id_=series_id, series=True)
             file_ids = [episode['id'] for episode in rename_list]
             result = api.post_command('RenameFiles', seriesId=series_id, files=file_ids)
             if isinstance(result, dict):
