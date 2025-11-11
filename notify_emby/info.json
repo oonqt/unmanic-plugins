@@ -1,0 +1,19 @@
+{
+    "author": "Rechigo (Modified from yajrendrag jellyfin_notify)",
+    "compatibility": [
+        1,
+        2
+    ],
+    "description": "Instructs Emby to do a scan targetting file that was imported",
+    "icon": "https://raw.githubusercontent.com/oonqt/unmanic-plugins/master/source/notify_emby/icon.png",
+    "id": "notify_emby",
+    "name": "Notify Emby",
+    "platform": [
+        "all"
+    ],
+    "priorities": {
+        "on_postprocessor_task_results": 0
+    },
+    "tags": "post-processor,embieserver",
+    "version": "0.1.7"
+}

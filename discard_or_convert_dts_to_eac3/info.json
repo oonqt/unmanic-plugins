@@ -1,0 +1,19 @@
+{
+    "author": "Rechigo (Modified from Josh.5,yajrendrag,Soultaco83)",
+    "compatibility": [
+        2
+    ],
+    "description": "Converts dts audio to eac3 or discards entirely if another surround track exists with a bitrate above a certain threshold",
+    "icon": "https://raw.githubusercontent.com/Unmanic/plugin.encoder_audio_aac/master/icon.png",
+    "id": "discard_or_convert_dts_to_eac3",
+    "name": "Discard or Convert DTS to eac3",
+    "platform": [
+        "all"
+    ],
+    "priorities": {
+        "on_library_management_file_test": 99,
+        "on_worker_process": 0
+    },
+    "tags": "audio,encoder,ffmpeg,library file test,embieserver",
+    "version": "0.1.9"
+}

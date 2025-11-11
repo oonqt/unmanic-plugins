@@ -1,0 +1,139 @@
+{
+    "repo": {
+        "id": "repository.embieserver",
+        "name": "modified Unmanic Plugins for EmbieServer",
+        "icon": "https://raw.githubusercontent.com/oonqt/unmanic-plugins/master/icon.png",
+        "repo_data_directory": "https://raw.githubusercontent.com/oonqt/unmanic-plugins/repo/",
+        "repo_data_url": "https://raw.githubusercontent.com/oonqt/unmanic-plugins/repo/repo.json"
+    },
+    "plugins": [
+        {
+            "author": "Rechigo (Modified from Josh.5,yajrendrag,Soultaco83)",
+            "compatibility": [
+                2
+            ],
+            "description": "Converts dts audio to eac3 or discards entirely if another surround track exists with a bitrate above a certain threshold",
+            "icon": "https://raw.githubusercontent.com/Unmanic/plugin.encoder_audio_aac/master/icon.png",
+            "id": "discard_or_convert_dts_to_eac3",
+            "name": "Discard or Convert DTS to eac3",
+            "platform": [
+                "all"
+            ],
+            "priorities": {
+                "on_library_management_file_test": 99,
+                "on_worker_process": 0
+            },
+            "tags": "audio,encoder,ffmpeg,library file test,embieserver",
+            "version": "0.1.9"
+        },
+        {
+            "author": "Rechigo,Cpt.Chaz,Josh.5",
+            "compatibility": [
+                2
+            ],
+            "description": "Notify Sonarr on series update to rescan modified file.",
+            "icon": "https://raw.githubusercontent.com/Josh5/unmanic.plugin.notify_sonarr/master/icon.png",
+            "id": "notify_sonarr_2",
+            "name": "Notify Sonarr 2",
+            "priorities": {
+                "on_postprocessor_task_results": 0
+            },
+            "tags": "sonarr",
+            "version": "0.0.8"
+        },
+        {
+            "author": "Rechigo (Modified from k29t59dh)",
+            "compatibility": [
+                2
+            ],
+            "description": "Add an AAC stereo track marked as default if the track has a multichannel track",
+            "icon": "https://raw.githubusercontent.com/k29t59dh/unmanic-plugins/master/source/aac_stereo_downmix/icon.png",
+            "icon_static": "/unmanic/panel/aac_stereo_downmix/static/icon.png",
+            "id": "add_default_aac_stereo",
+            "name": "Add Default AAC Stereo",
+            "priorities": {
+                "on_worker_process": 0
+            },
+            "tags": "audio, encoder, ffmpeg, stereo, downmix, aac",
+            "version": "0.0.6"
+        },
+        {
+            "author": "Rechigo (Modified from Josh.5,yajrendrag,Soultaco83)",
+            "compatibility": [
+                1,
+                2
+            ],
+            "description": "Removes Audio if it has Commentary in title tag",
+            "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/remove_commentary_soultaco83/icon.png",
+            "id": "remove_commentary_embieserver",
+            "name": "remove commentary",
+            "platform": [
+                "all"
+            ],
+            "priorities": {
+                "on_library_management_file_test": 50,
+                "on_worker_process": 1
+            },
+            "tags": "subtitle,data,ffmpeg,library file test,embieserver",
+            "version": "0.0.6"
+        },
+        {
+            "author": "Rechigo (Modified from yajrendrag jellyfin_notify)",
+            "compatibility": [
+                1,
+                2
+            ],
+            "description": "Instructs Emby to do a scan targetting file that was imported",
+            "icon": "https://raw.githubusercontent.com/oonqt/unmanic-plugins/master/source/notify_emby/icon.png",
+            "id": "notify_emby",
+            "name": "Notify Emby",
+            "platform": [
+                "all"
+            ],
+            "priorities": {
+                "on_postprocessor_task_results": 0
+            },
+            "tags": "post-processor,embieserver",
+            "version": "0.1.7"
+        },
+        {
+            "author": "Rechigo (Modified from Josh.5,yajrendrag,Soultaco83)",
+            "compatibility": [
+                2
+            ],
+            "description": "Converts stereo DTS audio to FLAC with the parameters specified in settings",
+            "icon": "https://raw.githubusercontent.com/k29t59dh/unmanic-plugins/master/source/aac_stereo_downmix/icon.png",
+            "id": "convert_dts_stereo_to_flac",
+            "name": "Convert DTS Stereo to FLAC",
+            "platform": [
+                "all"
+            ],
+            "priorities": {
+                "on_library_management_file_test": 99,
+                "on_worker_process": 0
+            },
+            "tags": "audio,encoder,ffmpeg,library file test,embieserver",
+            "version": "0.0.4"
+        },
+        {
+            "author": "Rechigo",
+            "compatibility": [
+                1,
+                2
+            ],
+            "description": "Remove unnecessary stereo tracks if media has multichannel track present",
+            "icon": "https://raw.githubusercontent.com/Unmanic/plugin.remove_stream_by_language/master/icon.png",
+            "id": "remove_stereo_if_has_multichannel",
+            "name": "Remove stereo if has multichannel",
+            "platform": [
+                "all"
+            ],
+            "priorities": {
+                "on_library_management_file_test": 99,
+                "on_worker_process": 1
+            },
+            "tags": "audio,ffmpeg,library file test",
+            "version": "0.1.13"
+        }
+    ]
+}

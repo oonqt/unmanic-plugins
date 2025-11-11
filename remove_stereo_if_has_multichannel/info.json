@@ -1,0 +1,20 @@
+{
+    "author": "Rechigo",
+    "compatibility": [
+        1,
+        2
+    ],
+    "description": "Remove unnecessary stereo tracks if media has multichannel track present",
+    "icon": "https://raw.githubusercontent.com/Unmanic/plugin.remove_stream_by_language/master/icon.png",
+    "id": "remove_stereo_if_has_multichannel",
+    "name": "Remove stereo if has multichannel",
+    "platform": [
+        "all"
+    ],
+    "priorities": {
+        "on_library_management_file_test": 99,
+        "on_worker_process": 1
+    },
+    "tags": "audio,ffmpeg,library file test",
+    "version": "0.1.13"
+}
