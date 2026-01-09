@@ -55,11 +55,8 @@ function initialize_variables {
   # Initialize variables
 
   export unmanic_url="http://unmanic:8888"
-  export library_movie_name="Movies"
   export library_movie_id=1
-  export library_tv_name="TV Shows"
   export library_tv_id=2
-  export library_anime_name="Anime"
   export library_anime_id=3
   export was_renamed=0
   export striptracks_renamedelay=30
@@ -528,35 +525,101 @@ function log {(
 )}
 function trigger_unmanic {
   local file="$1"
+  local library_id=""
 
+  # Decide library_id based on your existing logic
   if [[ "${striptracks_video_api}" == "episode" ]]; then
-    local library_id=$library_tv_id
-    local library_name=$library_tv_name
+    library_id="$library_tv_id"
 
     if echo "$file" | grep -qi "/anime/"; then
-      library_id=$library_anime_id
-      library_name=$library_anime_name
+      library_id="$library_anime_id"
     fi
   elif [[ "${striptracks_video_api}" == "movie" ]]; then
-    local library_id=$library_movie_id
-    local library_name=$library_movie_name
+    library_id="$library_movie_id"
   fi
 
-  echo "Triggering Unmanic for: $file (Library: $library_name)" | log
+  # Bail gracefully if we couldn't resolve a library_id
+  if [[ -z "$library_id" ]]; then
+    echo "Unmanic: no library_id resolved for file: $file (striptracks_video_api=$striptracks_video_api)" | log
+    return 0
+  fi
 
-  curl --silent -o /dev/null -X 'POST' \
-    "${unmanic_url}/unmanic/api/v2/pending/create" \
-    -H 'accept: application/json' \
-    -H 'Content-Type: application/json' \
-    -d "{
-      \"path\": \"${file}\",
-      \"library_id\": ${library_id},
-      \"library_name\": \"${library_name}\",
-      \"type\": \"local\",
-      \"priority_score\": 1000
-    }" 2>/dev/null
-  
-  echo "Triggered Unmanic..."
+  echo "Triggering Unmanic test for: $file (Library ID: $library_id)" | log
+
+  # Build JSON for /pending/test (path + library_id + type=local)
+  local test_payload
+  test_payload="$(
+    jq -n \
+      --arg path "$file" \
+      --argjson library_id "$library_id" \
+      --arg type "local" \
+      '{
+        path: $path,
+        library_id: $library_id,
+        type: $type
+      }'
+  )"
+
+  # Call /pending/test
+  local test_resp
+  test_resp="$(
+    curl --silent -X 'POST' \
+      "${unmanic_url}/unmanic/api/v2/pending/test" \
+      -H 'accept: application/json' \
+      -H 'Content-Type: application/json' \
+      -d "$test_payload" 2>/dev/null
+  )"
+
+  # Parse decision + issues
+  local decision issues_len
+  decision="$(printf '%s\n' "$test_resp" | jq -r '.add_file_to_pending_tasks // "null"')"
+  issues_len="$(printf '%s\n' "$test_resp" | jq -r '.issues | length')"
+
+  if [[ "$issues_len" != "0" ]]; then
+    printf '%s\n' "$test_resp" | jq -r '.issues[]' | while IFS= read -r line; do
+      echo "Unmanic pending/test issue (lib_id=${library_id}): $line" | log
+    done
+  fi
+
+  case "$decision" in
+    true)
+      # Plugin wants this file queued → /pending/create
+      local create_payload
+      create_payload="$(
+        jq -n \
+          --arg path "$file" \
+          --argjson library_id "$library_id" \
+          '{
+            path: $path,
+            library_id: $library_id,
+            type: "local",
+            priority_score: 1000
+          }'
+      )"
+
+      curl --silent -o /dev/null -X 'POST' \
+        "${unmanic_url}/unmanic/api/v2/pending/create" \
+        -H 'accept: application/json' \
+        -H 'Content-Type: application/json' \
+        -d "$create_payload" 2>/dev/null
+
+      echo "Unmanic: queued file after test (Library ID: $library_id): $file" | log
+      ;;
+
+    false)
+      # Plugin explicitly rejected it
+      echo "Unmanic: plugin rejected file, not queueing (Library ID: $library_id): $file" | log
+      ;;
+
+    null|"")
+      # No plugin cared about the file
+      echo "Unmanic: no plugin requested queueing (Library ID: $library_id): $file" | log
+      ;;
+
+    *)
+      echo "Unmanic: unexpected add_file_to_pending_tasks value '$decision' (Library ID: $library_id, file: $file)" | log
+      ;;
+  esac
 }
 function read_xml {
   # Read XML file and parse it
@@ -1490,6 +1553,18 @@ function process_mkvmerge_json {
         .striptracks_keep = true
       elif .type == "audio" or .type == "subtitles" then
         .striptracks_log = "\(.id): \($track_lang) (\(.codec))\(if .properties.track_name then " \"" + .properties.track_name + "\"" else "" end)" |
+
+        # Always drop image-based subtitle tracks (PGS / VobSub / DVB)
+        if (.type == "subtitles" and (
+              ((.properties.codec_id // "") | test("S_HDMV/PGS|S_VOBSUB|S_DVBSUB")) or
+              ((.codec // "") | test("PGS|VobSub|DVB"; "i"))
+            )) then
+          .striptracks_keep = false
+          | .striptracks_log = "Info|Removing image-based subtitles track " + .striptracks_log
+        else
+          .
+        end |
+
         # Same logic for both audio and subtitles
         (if .type == "audio" then $AudioRules else $SubsRules end) as $currentRules |
         if ($currentRules.languages["any"] == -1 or ($track_counters.normal | add) < $currentRules.languages["any"] or
