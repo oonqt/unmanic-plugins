@@ -55,6 +55,8 @@ function initialize_variables {
   # Initialize variables
 
   export unmanic_url="http://unmanic:8888"
+  export emby_url="http://embyserver:8096"
+  export emby_key=""
   export library_movie_id=1
   export library_tv_id=2
   export library_anime_id=3
@@ -523,6 +525,38 @@ function log {(
     fi
   done
 )}
+function notify_emby_media_updated {
+  local file="$1"
+
+  # Require emby_url and emby_api_key
+  if [[ -z "${emby_url:-}" || -z "${emby_api_key:-}" ]]; then
+    echo "Emby: emby_url or emby_api_key not set, cannot notify for: $file" | log
+    return 0
+  fi
+
+  # Build JSON payload: {"Updates":[{"Path": "...", "UpdateType": "Created"}]}
+  local emby_payload
+  emby_payload="$(
+    jq -n --arg path "$file" '
+      {
+        Updates: [
+          {
+            Path: $path,
+            UpdateType: "Created"
+          }
+        ]
+      }'
+  )"
+
+  local emby_endpoint="${emby_url%/}/emby/Library/Media/Updated?api_key=${emby_api_key}"
+
+  echo "Emby: notifying media updated for file: $file" | log
+
+  curl --silent -o /dev/null -X 'POST' \
+    "$emby_endpoint" \
+    -H 'Content-Type: application/json' \
+    -d "$emby_payload" 2>/dev/null
+}
 function trigger_unmanic {
   local file="$1"
   local library_id=""
@@ -609,15 +643,18 @@ function trigger_unmanic {
     false)
       # Plugin explicitly rejected it
       echo "Unmanic: plugin rejected file, not queueing (Library ID: $library_id): $file" | log
+      notify_emby_media_updated "$file"
       ;;
 
     null|"")
       # No plugin cared about the file
       echo "Unmanic: no plugin requested queueing (Library ID: $library_id): $file" | log
+      notify_emby_media_updated "$file"
       ;;
 
     *)
       echo "Unmanic: unexpected add_file_to_pending_tasks value '$decision' (Library ID: $library_id, file: $file)" | log
+      notify_emby_media_updated "$file"
       ;;
   esac
 }
