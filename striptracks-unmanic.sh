@@ -586,31 +586,49 @@ function trigger_unmanic {
     jq -n \
       --arg path "$file" \
       --argjson library_id "$library_id" \
-      --arg type "local" \
       '{
         path: $path,
-        library_id: $library_id,
-        type: $type
+        library_id: $library_id
       }'
   )"
 
-  # Call /pending/test
-  local test_resp
+  local test_resp http_code
   test_resp="$(
-    curl --silent -X 'POST' \
+    curl -sS --fail-with-body \
+      -w $'\n%{http_code}' \
+      -X POST \
       "${unmanic_url}/unmanic/api/v2/pending/test" \
       -H 'accept: application/json' \
       -H 'Content-Type: application/json' \
-      -d "$test_payload" 2>/dev/null
+      -d "$test_payload"
   )"
 
-  # Parse decision + issues
+  http_code="${test_resp##*$'\n'}"
+  test_resp="${test_resp%$'\n'*}"
+
+  # If Unmanic didn't return 200, log the body and bail to Emby update (or just return)
+  if [[ "$http_code" != "200" ]]; then
+    echo "Unmanic pending/test HTTP $http_code for file: $file (lib_id=$library_id). Body: ${test_resp:0:500}" | log
+    notify_emby_media_updated "$file"
+    return 0
+  fi
+
+  # Parse decision + issues (and normalize CR just in case)
   local decision issues_len
-  decision="$(printf '%s\n' "$test_resp" | jq -r '.add_file_to_pending_tasks // "null"')"
-  issues_len="$(printf '%s\n' "$test_resp" | jq -r '.issues | length')"
+  decision="$(jq -re '.add_file_to_pending_tasks' <<<"$test_resp" 2>/dev/null || echo "null")"
+  decision="${decision//$'\r'/}"
+
+  issues_len="$(jq -re '.issues | length' <<<"$test_resp" 2>/dev/null || echo "0")"
+  issues_len="${issues_len//$'\r'/}"
+
+  # If jq couldn't parse or field missing, log the raw response snippet
+  if [[ "$decision" != "true" && "$decision" != "false" && "$decision" != "null" ]]; then
+    echo "Unmanic pending/test: unexpected decision parse '$decision'. Raw: ${test_resp:0:500}" | log
+    decision="null"
+  fi
 
   if [[ "$issues_len" != "0" ]]; then
-    printf '%s\n' "$test_resp" | jq -r '.issues[]' | while IFS= read -r line; do
+    jq -r '.issues[]' <<<"$test_resp" | while IFS= read -r line; do
       echo "Unmanic pending/test issue (lib_id=${library_id}): $line" | log
     done
   fi
