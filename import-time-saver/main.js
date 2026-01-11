@@ -44,14 +44,16 @@ const main = async () => {
 
         console.log(`Found ${outFilePath} added to radarr at ${addedAt}`);
 
-        const embyItemDirId = (
+        const embyItemDir = (
             await emby(`/Items?ParentId=${EMBY_LIBRARY_ID}&Fields=Path`)
-        ).data.Items.find(item => movieFolder === item.Path).Id;
+        ).data.Items.find(item => movieFolder === item.Path);
 
-        console.log(`Found movie folder with ID: ${embyItemDirId}`);
+        if(!embyItemDir) return console.log(`Could not find emby folder for movie at path ${movieFolder}. Likely a new movie item.`);
+
+        console.log(`Found movie folder with ID: ${embyItemDir.Id}`);
 
         const embyItemId = (
-            await emby(`/Items?ParentId=${embyItemDirId}&Fields=Path`)
+            await emby(`/Items?ParentId=${embyItemDir.Id}&Fields=Path`)
         ).data.Items.find(item => outFilePath === item.Path).Id;
 
         console.log(`Found emby movie item with ID: ${embyItemId}`);
