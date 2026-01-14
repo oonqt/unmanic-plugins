@@ -1609,17 +1609,6 @@ function process_mkvmerge_json {
       elif .type == "audio" or .type == "subtitles" then
         .striptracks_log = "\(.id): \($track_lang) (\(.codec))\(if .properties.track_name then " \"" + .properties.track_name + "\"" else "" end)" |
 
-        # Always drop image-based subtitle tracks (PGS / VobSub / DVB)
-        if (.type == "subtitles" and (
-              ((.properties.codec_id // "") | test("S_HDMV/PGS|S_VOBSUB|S_DVBSUB")) or
-              ((.codec // "") | test("PGS|VobSub|DVB"; "i"))
-            )) then
-          .striptracks_keep = false
-          | .striptracks_log = "Info|Removing image-based subtitles track " + .striptracks_log
-        else
-          .
-        end |
-
         # Same logic for both audio and subtitles
         (if .type == "audio" then $AudioRules else $SubsRules end) as $currentRules |
         if ($currentRules.languages["any"] == -1 or ($track_counters.normal | add) < $currentRules.languages["any"] or
@@ -1636,6 +1625,18 @@ function process_mkvmerge_json {
           .striptracks_keep = true |
           .striptracks_rule = "default"
         else . end |
+
+        # Always drop image-based subtitle tracks (PGS / VobSub / DVB) AFTER rules decide keep
+        if (.type == "subtitles" and (
+              ((.properties.codec_id // "") | test("S_HDMV/PGS|S_VOBSUB|S_DVBSUB")) or
+              ((.codec // "") | test("PGS|VobSub|DVB"; "i"))
+            )) then
+          .striptracks_keep = false |
+          .striptracks_log = "Info|Removing image-based subtitles track " + .striptracks_log
+        else
+          .
+        end |
+
         if .striptracks_keep then
           .striptracks_log = "Info|Keeping \(if .striptracks_rule then .striptracks_rule + " " else "" end)\(.type) track " + .striptracks_log
         else
