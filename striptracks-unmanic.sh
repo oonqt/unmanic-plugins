@@ -56,7 +56,7 @@ function initialize_variables {
 
   export unmanic_url="http://unmanic:8888"
   export emby_url="http://embyserver:8096"
-  export emby_key=""
+  export emby_api_key=""
   export library_movie_id=1
   export library_tv_id=2
   export library_anime_id=3
