@@ -838,7 +838,7 @@ function get_rename {
   return
 }
 function rename_videofile {
-  # Rename video file according to Radarr/Sonarr naming rulestrigger_unmanic
+  # Rename video file according to Radarr/Sonarr naming rules
 
   local file_id="$1" # ID of the video file to rename
   local newname="$2" # New name of the video file 
